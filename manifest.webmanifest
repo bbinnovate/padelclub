@@ -1,0 +1,10 @@
+{
+  "name": "Padel Club",
+  "short_name": "PadelClub",
+  "description": "Book premium padel courts in under 60 seconds.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "icons": []
+}

@@ -1,0 +1,122 @@
+openapi: 3.1.0
+info:
+  title: Padel Club API
+  version: 1.0.0
+  description: Versioned, mobile-ready contract shared by web and future Flutter clients.
+servers:
+  - url: https://api.example.com/v1
+paths:
+  /venues:
+    get:
+      summary: List active venues
+      responses:
+        "200":
+          description: Active venues
+  /venues/{venueId}/sports:
+    get:
+      summary: List sports, facilities, booking limits, and slot prices
+      parameters:
+        - { name: venueId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Active sports and their courts or grounds
+  /venues/{venueId}/availability:
+    get:
+      summary: Return bookable court start times
+      parameters:
+        - { name: venueId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: sportId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Real-time availability, excluding bookings and blocked slots
+        "422":
+          description: Date or duration violates venue rules
+  /bookings:
+    post:
+      summary: Create and atomically reserve a booking
+      description: Revalidates availability inside a transaction. Database exclusion constraints prevent race-condition overlaps.
+      security: [{ bearerAuth: [] }, {}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBooking"
+      responses:
+        "201":
+          description: Booking confirmed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Booking" }
+        "409":
+          description: Slot is no longer available
+    get:
+      summary: List authenticated user's bookings
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Upcoming and past bookings }
+  /bookings/{reference}:
+    get:
+      summary: Fetch a booking by reference
+      parameters:
+        - { name: reference, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Booking details }
+        "404": { description: Booking not found }
+  /bookings/{reference}/cancel:
+    post:
+      summary: Cancel a booking and immediately release inventory
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Booking cancelled }
+        "422": { description: Cancellation window has closed }
+  /admin/checkins:
+    post:
+      summary: Check in or mark a booking no-show
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201": { description: Check-in recorded }
+  /admin/reports/summary:
+    get:
+      summary: Return occupancy, revenue, cancellation, and no-show metrics
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Venue report summary }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CreateBooking:
+      type: object
+      required: [venueId, courtId, slotStarts, playerCount, customer]
+      properties:
+        venueId: { type: string, format: uuid }
+        courtId: { type: string, format: uuid }
+        slotStarts:
+          type: array
+          minItems: 2
+          description: Consecutive 30-minute slot start timestamps on one facility. Backend derives and validates duration.
+          items: { type: string, format: date-time }
+        playerCount: { type: integer, minimum: 2, description: Must match one of the selected sport's configured player options }
+        customer:
+          type: object
+          required: [name, mobile]
+          properties:
+            name: { type: string, minLength: 2, maxLength: 100 }
+            mobile: { type: string, pattern: "^\\+?[0-9 ]{10,16}$" }
+            email: { type: string, format: email }
+    Booking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        reference: { type: string, example: BK-2026-000127 }
+        verificationCode: { type: string, example: PDL8X4 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        amountDue: { type: integer, description: Minor currency units }
+        status: { type: string, enum: [pending, confirmed, cancelled, completed, no_show] }
+        paymentStatus: { type: string, enum: [pending, paid, partially_paid, complimentary] }
