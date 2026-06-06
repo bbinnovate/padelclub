@@ -32,6 +32,7 @@ const state = {
   currentProfile: null,
   allBookings: [],
   userBookings: [],
+  adminBookingSearch: "",
 };
 
 const sports = {
@@ -1064,10 +1065,29 @@ function renderUserDashboard() {
 // Admin Dashboard: overview cards and booking table actions backed by Firestore updates.
 function renderAdminDashboard() {
   const bookings = state.allBookings;
+  const today = new Date();
+  const activeBookings = bookings.filter((booking) => booking.status !== "Cancelled");
+  const searchTerm = state.adminBookingSearch.trim().toLowerCase();
+  const filteredBookings = searchTerm
+    ? bookings.filter((booking) =>
+        [booking.bookingId, booking.bookingToken, booking.name].some((value) =>
+          String(value || "").toLowerCase().includes(searchTerm),
+        ),
+      )
+    : bookings;
   const checkedIn = bookings.filter((booking) => booking.status === "Checked-In").length;
   const cancelled = bookings.filter((booking) => booking.status === "Cancelled").length;
   const paid = bookings.filter((booking) => booking.paymentStatus === "Paid").length;
   const unpaid = bookings.filter((booking) => booking.paymentStatus === "Unpaid").length;
+  const expectedToday = activeBookings
+    .filter((booking) => timestampToDate(booking.bookingDate)?.toDateString() === today.toDateString())
+    .reduce((total, booking) => total + Number(booking.amount || 0), 0);
+  const expectedMonth = activeBookings
+    .filter((booking) => {
+      const bookingDate = timestampToDate(booking.bookingDate);
+      return bookingDate && bookingDate.getMonth() === today.getMonth() && bookingDate.getFullYear() === today.getFullYear();
+    })
+    .reduce((total, booking) => total + Number(booking.amount || 0), 0);
 
   $("#adminMetrics").innerHTML = [
     ["Total Bookings", bookings.length],
@@ -1075,7 +1095,8 @@ function renderAdminDashboard() {
     ["Cancelled Bookings", cancelled],
     ["Paid Bookings", paid],
     ["Unpaid Bookings", unpaid],
-    ["Total Users", window.latestUserCount || 0],
+    ["Expected Revenue Today", formatCurrency(expectedToday)],
+    ["Expected Revenue This Month", formatCurrency(expectedMonth)],
   ]
     .map(
       ([label, value]) => `
@@ -1084,42 +1105,36 @@ function renderAdminDashboard() {
     )
     .join("");
 
-  $("#adminBookingTable").innerHTML = bookings.length
-    ? bookings
+  $("#adminBookingTable").innerHTML = filteredBookings.length
+    ? filteredBookings
         .map(
           (booking) => `
       <tr>
         <td>${booking.bookingId}</td>
         <td>${booking.bookingToken}</td>
+        <td>${booking.sportName || "-"}</td>
+        <td>${booking.facilityName || "-"}</td>
         <td>${booking.name}</td>
-        <td>${booking.email}</td>
         <td>${booking.phoneNumber}</td>
         <td>${formatBookingDate(booking.bookingDate)}</td>
         <td>${renderStatusPill(booking.status)}</td>
         <td>${renderStatusPill(booking.paymentStatus)}</td>
         <td>
           <div class="table-actions">
-            <button data-action="checked-in" data-id="${booking.docId || booking.bookingId}" type="button">Mark Checked-In</button>
-            <button data-action="paid" data-id="${booking.docId || booking.bookingId}" type="button">Mark Paid</button>
-            <button data-action="cancelled" data-id="${booking.docId || booking.bookingId}" type="button">Mark Cancelled</button>
+            <button data-action="checked-in" data-id="${booking.docId || booking.bookingId}" type="button">Checked-In</button>
+            <button data-action="paid" data-id="${booking.docId || booking.bookingId}" type="button">Paid</button>
+            <button data-action="cancelled" data-id="${booking.docId || booking.bookingId}" type="button">Cancelled</button>
           </div>
         </td>
       </tr>
     `,
         )
         .join("")
-    : `<tr><td colspan="9"><p class="empty-state">No bookings found yet.</p></td></tr>`;
+    : `<tr><td colspan="11"><p class="empty-state">No bookings found.</p></td></tr>`;
 
   $$("#adminBookingTable [data-action]").forEach((button) => {
     button.addEventListener("click", () => updateBookingFromAdmin(button.dataset.id, button.dataset.action, button));
   });
-}
-
-async function loadAdminUserCount() {
-  if (!firebaseSdkReady || state.currentProfile?.role !== "admin") return;
-  const snapshot = await usersRef.get();
-  window.latestUserCount = snapshot.size;
-  renderAdminDashboard();
 }
 
 async function updateBookingFromAdmin(docId, action, button) {
@@ -1173,6 +1188,10 @@ function bindEvents() {
   $("#registerButton").addEventListener("click", () => openAuthModal("register"));
   $("#adminPanelButton").addEventListener("click", () => {
     if (protectAdminRoute()) showView("admin");
+  });
+  $("#adminBookingSearch").addEventListener("input", (event) => {
+    state.adminBookingSearch = event.target.value;
+    renderAdminDashboard();
   });
   $("#userDashboardButton").addEventListener("click", () => showView("user"));
   $("#logoutButton").addEventListener("click", async () => {
@@ -1232,7 +1251,6 @@ async function bootAuth() {
       await loadUserProfile(user);
       updateAuthUI();
       subscribeToBookings();
-      loadAdminUserCount().catch(() => {});
     } else {
       updateAuthUI();
       showView("player");

@@ -203,10 +203,10 @@
           <button><span>◒</span>Reports</button>
           <button><span>⚙</span>Settings</button> -->
         </nav>
-        <div class="sidebar-bottom">
+        <!-- <div class="sidebar-bottom">
           <div class="club-status"><i></i><div><strong>Club is open</strong><span>Closes at 12:00 AM</span></div></div>
           <button class="profile-button"><span>AK</span><div><strong>Arjun Kumar</strong><small>Venue manager</small></div><b>•••</b></button>
-        </div>
+        </div> -->
       </aside>
       <section class="admin-content">
         <div class="admin-topbar">
@@ -220,24 +220,38 @@
         </div>
 
         <div class="metric-grid admin-metric-grid" id="adminMetrics">
-          <article><div><span>Today's bookings</span><i>↗ 18%</i></div><strong>34</strong><small>12 completed · 22 upcoming</small></article>
-          <article><div><span>Expected revenue</span><i>↗ 12%</i></div><strong>₹86.5K</strong><small>₹62.4K collected</small></article>
-          <article><div><span>Occupancy</span><i>Strong</i></div><strong>74%</strong><small>Across 9 play spaces</small></article>
-          <article><div><span>Pending payments</span><i class="warn">Action</i></div><strong>07</strong><small>₹24,100 to collect</small></article>
+          <article><div><span>Total Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+          <article><div><span>Checked-In Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+          <article><div><span>Cancelled Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+          <article><div><span>Paid Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+          <article><div><span>Unpaid Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+          <article><div><span>Expected Revenue Today</span></div><strong>...</strong><small>Excludes cancelled</small></article>
+          <article><div><span>Expected Revenue This Month</span></div><strong>...</strong><small>Excludes cancelled</small></article>
         </div>
 
         <article class="booking-table-panel">
-          <div class="panel-heading">
-            <div><small>All bookings</small><h2>Manage statuses and payments</h2></div>
-          </div>
+        <div class="panel-heading booking-header-row">
+  <h2>All Bookings - Manage Statuses and Payments</h2>
+
+  <div class="booking-search-row">
+    <input
+      id="adminBookingSearch"
+      class="booking-search-input"
+      type="search"
+      placeholder="Search by Booking ID, Token, or Customer Name"
+      autocomplete="off"
+    />
+  </div>
+</div>
           <div class="table-scroll">
             <table class="booking-table">
               <thead>
                 <tr>
                   <th>Booking ID</th>
                   <th>Booking Token</th>
+                  <th>Sport Name</th>
+                  <th>Padel Court Name</th>
                   <th>Name</th>
-                  <th>Email</th>
                   <th>Phone Number</th>
                   <th>Booking Date</th>
                   <th>Status</th>
@@ -246,7 +260,7 @@
                 </tr>
               </thead>
               <tbody id="adminBookingTable">
-                <tr><td colspan="9"><p class="empty-state">Loading bookings...</p></td></tr>
+                <tr><td colspan="11"><p class="empty-state">Loading bookings...</p></td></tr>
               </tbody>
             </table>
           </div>
