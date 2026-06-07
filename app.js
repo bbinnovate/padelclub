@@ -33,7 +33,14 @@ const state = {
   allBookings: [],
   userBookings: [],
   adminBookingSearch: "",
+  adminBookingPage: 1,
+  adminBookingPages: [],
+  adminBookingQueryKey: "",
+  adminBookingLoading: false,
+  adminBookingRequestId: 0,
+  adminBookingTotal: 0,
 };
+const ADMIN_BOOKINGS_PAGE_SIZE = 10;
 
 const sports = {
   padel: {
@@ -108,6 +115,7 @@ const elements = {
   slotMessage: $("#slotMessage"),
   alertRegion: $("#alertRegion"),
 };
+const pageName = document.body.dataset.page || "home";
 
 const FIRESTORE_DATABASE = "(default)";
 const FIREBASE_AUTH_BASE_URL = "https://identitytoolkit.googleapis.com/v1";
@@ -272,6 +280,10 @@ function timestampToDate(value) {
   return new Date(value);
 }
 
+function toFirestoreTimestamp(date) {
+  return firebaseSdkReady ? firebase.firestore.Timestamp.fromDate(date) : date;
+}
+
 function formatBookingDate(value) {
   const date = timestampToDate(value);
   if (!date || Number.isNaN(date.getTime())) return "Not set";
@@ -302,6 +314,7 @@ function makeCustomerId(email, phoneNumber) {
 }
 
 function showAlert(message, type = "success") {
+  if (!elements.alertRegion) return;
   const alert = document.createElement("div");
   alert.className = `app-alert ${type}`;
   alert.textContent = message;
@@ -350,11 +363,12 @@ function setButtonLoading(button, loading, label = "Working...") {
 function clearSelection() {
   state.selectedFacilityId = null;
   state.selectedSlots = [];
-  elements.bookingBar.hidden = true;
+  if (elements.bookingBar) elements.bookingBar.hidden = true;
   hideMessage();
 }
 
 function renderSports() {
+  if (!elements.sportOptions) return;
   elements.sportOptions.innerHTML = Object.entries(sports)
     .map(
       ([key, sport]) => `
@@ -378,6 +392,7 @@ function renderSports() {
 }
 
 function renderDates() {
+  if (!elements.dateScroller) return;
   elements.dateScroller.innerHTML = dates
     .map((date, index) => {
       const day = index === 0 ? "Today" : date.toLocaleDateString("en-IN", { weekday: "short" });
@@ -420,7 +435,15 @@ function isUnavailable(facilityId, slotIndex) {
   return baseUnavailable.includes(slotIndex) || bookedFromFirestore || (dateOffset === 2 && (slotIndex + facilityId) % 17 === 0);
 }
 
+function isPastSlot(slotIndex) {
+  const selectedDate = dates[state.selectedDate];
+  const slotEnd = new Date(selectedDate);
+  slotEnd.setHours(6, (slotIndex + 1) * 30, 0, 0);
+  return selectedDate.toDateString() === new Date().toDateString() && slotEnd <= new Date();
+}
+
 function renderAvailability() {
+  if (!elements.availabilityGrid) return;
   const sport = getSport();
   const selectedDate = dates[state.selectedDate];
   const facilities = getFacilities();
@@ -442,8 +465,10 @@ function renderAvailability() {
       )
       .join("")}
     ${times
+      .map((time, slotIndex) => ({ time, slotIndex }))
+      .filter(({ slotIndex }) => !isPastSlot(slotIndex))
       .map(
-        (time, slotIndex) => `
+        ({ time, slotIndex }) => `
       <div class="time-label"><strong>${time}</strong><small>${minutesToTime(360 + (slotIndex + 1) * 30)}</small></div>
       ${facilities
         .map((facility) => {
@@ -473,6 +498,12 @@ function renderAvailability() {
 }
 
 function selectSlot(facilityId, slotIndex) {
+  if (isPastSlot(slotIndex) || isUnavailable(facilityId, slotIndex)) {
+    showMessage("This time slot cannot be selected.", "error");
+    renderAvailability();
+    return;
+  }
+
   const sport = getSport();
   const selected = [...state.selectedSlots].sort((a, b) => a - b);
 
@@ -508,16 +539,19 @@ function selectSlot(facilityId, slotIndex) {
 }
 
 function showMessage(message, type = "info") {
+  if (!elements.slotMessage) return;
   elements.slotMessage.textContent = message;
   elements.slotMessage.className = `slot-message ${type}`;
   elements.slotMessage.hidden = false;
 }
 
 function hideMessage() {
+  if (!elements.slotMessage) return;
   elements.slotMessage.hidden = true;
 }
 
 function updateBookingBar() {
+  if (!elements.bookingBar) return;
   if (!state.selectedSlots.length) {
     elements.bookingBar.hidden = true;
     return;
@@ -534,6 +568,7 @@ function updateBookingBar() {
 }
 
 function showDetailsModal() {
+  if (!elements.detailsModal || !elements.bookingForm) return;
   const selection = getSelection();
   if (state.selectedSlots.length < 2) {
     showMessage("Please select at least two consecutive 30-minute slots to make a 1-hour booking.", "error");
@@ -616,9 +651,90 @@ function buildConfirmationMessage(booking) {
   ].join("\n");
 }
 
-// Booking Confirmation Messaging: backend endpoints can later send SMS/WhatsApp from 8879961503.
+function getBookingPdfFileName(booking) {
+  return `${booking.bookingId || "booking-confirmation"}.pdf`;
+}
+
+function getConfirmationCaptureElement() {
+  return $("#confirmationPdfContent") || $(".confirmation-modal");
+}
+
+async function createConfirmationPdfBlob(booking) {
+  if (!window.html2canvas || !window.jspdf?.jsPDF) {
+    throw new Error("PDF generator is still loading. Please try again in a moment.");
+  }
+
+  const target = getConfirmationCaptureElement();
+  if (!target) throw new Error("Confirmation ticket is not available.");
+
+  const canvas = await html2canvas(target, {
+    backgroundColor: "#ffffff",
+    scale: Math.min(window.devicePixelRatio || 2, 3),
+    useCORS: true,
+  });
+  const imageData = canvas.toDataURL("image/png");
+  const pdf = new window.jspdf.jsPDF({
+    orientation: "portrait",
+    unit: "pt",
+    format: "a4",
+  });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 28;
+  const imageWidth = pageWidth - margin * 2;
+  const imageHeight = (canvas.height * imageWidth) / canvas.width;
+  const fittedHeight = Math.min(imageHeight, pageHeight - margin * 2);
+
+  pdf.addImage(imageData, "PNG", margin, margin, imageWidth, fittedHeight);
+  return pdf.output("blob");
+}
+
+async function downloadConfirmationPdf(booking, button) {
+  setButtonLoading(button, true, "Creating PDF...");
+  try {
+    const blob = await createConfirmationPdfBlob(booking);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = getBookingPdfFileName(booking);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  } catch (error) {
+    showAlert(error.message || "Could not create PDF.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function shareConfirmationOnWhatsApp(booking, button) {
+  const message = buildConfirmationMessage(booking);
+  setButtonLoading(button, true, "Preparing...");
+  try {
+    const blob = await createConfirmationPdfBlob(booking);
+    const file = new File([blob], getBookingPdfFileName(booking), { type: "application/pdf" });
+    const shareData = {
+      title: "Booking Confirmation",
+      text: message,
+      files: [file],
+    };
+
+    if (navigator.canShare?.(shareData)) {
+      await navigator.share(shareData);
+      return;
+    }
+
+    window.open(buildWhatsAppShareUrl(booking), "_blank", "noopener,noreferrer");
+    showAlert("Your browser cannot attach PDFs directly to WhatsApp. The message was opened; use Download confirmation to attach the PDF manually.", "info");
+  } catch (error) {
+    window.open(buildWhatsAppShareUrl(booking), "_blank", "noopener,noreferrer");
+    showAlert(error.message || "Could not share PDF directly. WhatsApp message opened without attachment.", "info");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+// Booking Confirmation Messaging: backend endpoints can later send SMS/WhatsApp.
 function createMessageServices() {
-  const senderNumber = "8879961503";
+  const senderNumber = window.PADEL_MESSAGE_CONFIG?.senderNumber || "";
 
   return {
     sms: {
@@ -752,6 +868,7 @@ async function confirmBooking(formData, submitButton) {
 }
 
 function showConfirmation(booking) {
+  if (!elements.confirmationModal || !elements.bookingForm) return;
   $("#confirmationId").textContent = booking.bookingId;
   $("#verificationCode").textContent = booking.bookingToken;
   $("#confirmationAmount").textContent = formatCurrency(booking.amount);
@@ -766,8 +883,8 @@ function showConfirmation(booking) {
     <div><small>Booking ID</small><strong>${booking.bookingId}</strong></div>
     <div><small>Booking Token</small><strong>${booking.bookingToken}</strong></div>
   `;
-  $("#whatsappButton").href = buildWhatsAppShareUrl(booking);
-  $("#downloadButton").onclick = () => downloadConfirmation(buildConfirmationMessage(booking));
+  $("#downloadButton").onclick = () => downloadConfirmationPdf(booking, $("#downloadButton"));
+  $("#whatsappButton").onclick = () => shareConfirmationOnWhatsApp(booking, $("#whatsappButton"));
   elements.detailsModal.hidden = true;
   elements.confirmationModal.hidden = false;
   elements.bookingBar.hidden = true;
@@ -775,33 +892,33 @@ function showConfirmation(booking) {
   clearSelection();
 }
 
-function downloadConfirmation(content) {
-  const blob = new Blob([content], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${$("#confirmationId").textContent}.txt`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
 function closeModal(modal) {
+  if (!modal) return;
   modal.hidden = true;
-  if (elements.detailsModal.hidden && elements.confirmationModal.hidden && elements.authModal.hidden) {
+  if ([elements.detailsModal, elements.confirmationModal, elements.authModal].every((item) => !item || item.hidden)) {
     document.body.style.overflow = "";
   }
 }
 
 // Authentication System: admin login only; customers book without accounts.
-function openAuthModal() {
+function prepareAuthForm() {
+  if (!elements.authForm) return;
   elements.authForm.dataset.mode = "admin";
-  $("#authTitle").innerHTML = "ADMIN<br><em>LOGIN.</em>";
-  $("#authSubmit").textContent = "Login";
-  $("#authNameField").hidden = true;
-  $("#authPhoneField").hidden = true;
+  if ($("#authTitle")) $("#authTitle").innerHTML = "ADMIN<br><em>LOGIN.</em>";
+  if ($("#authSubmit")) $("#authSubmit").textContent = "Login";
+  if ($("#authNameField")) $("#authNameField").hidden = true;
+  if ($("#authPhoneField")) $("#authPhoneField").hidden = true;
   elements.authForm.elements.name.required = false;
   elements.authForm.elements.phoneNumber.required = false;
-  $("#authToggleText").textContent = "Admin access only.";
-  $("#authToggle").hidden = true;
+  if ($("#authToggleText")) $("#authToggleText").textContent = "Admin access only.";
+  if ($("#authToggle")) $("#authToggle").hidden = true;
+}
+
+function openAuthModal() {
+  if (!elements.authModal || !elements.authForm) {
+    return;
+  }
+  prepareAuthForm();
   elements.authModal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -823,6 +940,7 @@ async function handleAuthSubmit(event) {
       if (state.currentProfile?.role !== "admin") throw new Error("Admin access is restricted.");
       updateAuthUI();
       closeModal(elements.authModal);
+      navigateToAdmin(true);
       showAlert("Admin logged in successfully.");
       return;
     }
@@ -836,6 +954,7 @@ async function handleAuthSubmit(event) {
       throw new Error("Admin access is restricted.");
     }
     closeModal(elements.authModal);
+    navigateToAdmin(true);
     showAlert("Admin logged in successfully.");
   } catch (error) {
     if (String(error?.message || "").includes("Admin access is restricted")) {
@@ -937,12 +1056,48 @@ async function loadUserProfile(user) {
 function updateAuthUI() {
   const loggedIn = Boolean(state.currentUser);
   const isAdmin = state.currentProfile?.role === "admin";
-  $("#loginButton").hidden = isAdmin;
-  $("#registerButton").hidden = true;
-  $("#logoutButton").hidden = !loggedIn;
-  $("#adminPanelButton").hidden = !loggedIn || !isAdmin;
-  $("#accountName").hidden = !loggedIn;
-  $("#accountName").textContent = loggedIn ? state.currentProfile?.name || state.currentUser.email : "";
+  if ($("#loginButton")) $("#loginButton").hidden = isAdmin;
+  if ($("#registerButton")) $("#registerButton").hidden = true;
+  if ($("#logoutButton")) $("#logoutButton").hidden = !loggedIn;
+  if ($("#adminPanelButton")) $("#adminPanelButton").hidden = !loggedIn || !isAdmin;
+  if ($("#accountName")) {
+    $("#accountName").hidden = !loggedIn;
+    $("#accountName").textContent = loggedIn ? state.currentProfile?.name || state.currentUser.email : "";
+  }
+}
+
+function isAdminRoute() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return document.body.dataset.page === "admin" || path === "/admin" || path === "/admin.html";
+}
+
+function isLoginRoute() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return document.body.dataset.page === "login" || path === "/login" || path === "/login.html";
+}
+
+function setRoute(path, replace = false) {
+  if (window.location.pathname === path) return;
+  const method = replace ? "replaceState" : "pushState";
+  window.history[method]({}, "", path);
+}
+
+function showAdminLoginRoute() {
+  state.mode = "admin-login";
+  if (elements.playerView) elements.playerView.hidden = true;
+  if (elements.adminView) elements.adminView.hidden = true;
+  if (elements.userDashboard) elements.userDashboard.hidden = true;
+  if ($("footer")) $("footer").hidden = true;
+  if (elements.bookingBar) elements.bookingBar.hidden = true;
+  openAuthModal();
+}
+
+function redirectToHome() {
+  window.location.replace("/");
+}
+
+function redirectToLogin() {
+  window.location.replace("/login");
 }
 
 // Firestore Live Data: admins see and manage every booking.
@@ -956,7 +1111,15 @@ function subscribeToBookings() {
     window.unsubscribeAdminBookings();
   }
 
-  window.unsubscribeAdminBookings = bookingsRef.onSnapshot(
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(dates[dates.length - 1]);
+  endDate.setHours(23, 59, 59, 999);
+
+  window.unsubscribeAdminBookings = bookingsRef
+    .where("bookingDate", ">=", toFirestoreTimestamp(startDate))
+    .where("bookingDate", "<=", toFirestoreTimestamp(endDate))
+    .onSnapshot(
     (snapshot) => {
       state.allBookings = snapshot.docs.map((doc) => ({
         docId: doc.id,
@@ -972,17 +1135,69 @@ function subscribeToBookings() {
     (error) => {
       console.error(error);
     }
-  );
+    );
 }
 
 function showView(view) {
   state.mode = view;
-  elements.playerView.hidden = view !== "player";
-  elements.adminView.hidden = view !== "admin";
-  elements.userDashboard.hidden = view !== "user";
-  $("footer").hidden = view === "admin" || view === "user";
-  elements.bookingBar.hidden = true;
+  if (elements.playerView) elements.playerView.hidden = view !== "player";
+  if (elements.adminView) elements.adminView.hidden = view !== "admin";
+  if (elements.userDashboard) elements.userDashboard.hidden = view !== "user";
+  if ($("footer")) $("footer").hidden = view === "admin" || view === "user";
+  if (elements.bookingBar) elements.bookingBar.hidden = true;
+  if (view === "player" && window.location.hash) {
+    const target = $(window.location.hash);
+    if (target) {
+      setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+      return;
+    }
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderRoute({ replace = false, showDenied = false } = {}) {
+  if (isAdminRoute()) {
+    if (state.currentProfile?.role === "admin") {
+      showView("admin");
+      renderAdminDashboard();
+      return;
+    }
+
+    redirectToLogin();
+    if (showDenied) showAlert("Admin login is required to access this page.", "error");
+    return;
+  }
+
+  if (isLoginRoute()) {
+    if (state.currentProfile?.role === "admin") {
+      navigateToAdmin(true);
+      return;
+    }
+    return;
+  }
+
+  showView("player");
+  if (replace) setRoute("/", true);
+}
+
+function navigateToHome(replace = false) {
+  if (isAdminRoute()) {
+    window.location.assign("/");
+    return;
+  }
+
+  setRoute("/", replace);
+  renderRoute({ replace });
+}
+
+function navigateToAdmin(replace = false) {
+  if (!isAdminRoute()) {
+    window.location.assign("/admin");
+    return;
+  }
+
+  setRoute("/admin", replace);
+  renderRoute();
 }
 
 function renderStatusPill(value) {
@@ -990,8 +1205,316 @@ function renderStatusPill(value) {
   return `<span class="status-pill ${className}">${value || "Unknown"}</span>`;
 }
 
+function renderBookingActions(booking) {
+  const id = booking.docId || booking.bookingId;
+  const actions = [];
+
+  if (booking.status !== "Checked-In" && booking.status !== "Cancelled") {
+    actions.push(["checked-in", "Checked-In"]);
+  }
+
+  if (booking.paymentStatus !== "Paid" && booking.status !== "Cancelled") {
+    actions.push(["paid", "Paid"]);
+  }
+
+  if (booking.status !== "Cancelled" && booking.status !== "Checked-In") {
+    actions.push(["cancelled", "Cancelled"]);
+  }
+
+  return actions.length
+    ? actions.map(([action, label]) => `<button data-action="${action}" data-id="${id}" type="button">${label}</button>`).join("")
+    : `<span class="empty-actions">No actions</span>`;
+}
+
+function resetAdminBookingPager() {
+  state.adminBookingPage = 1;
+  state.adminBookingPages = [];
+  state.adminBookingQueryKey = "";
+  state.adminBookingTotal = 0;
+}
+
+function getAdminSearchField(term) {
+  const value = term.trim();
+  if (/^bk/i.test(value)) return "bookingId";
+  if (/^[A-Z0-9]{4,}$/i.test(value) && !value.includes(" ")) return "bookingToken";
+  return "name";
+}
+
+function makePrefixEnd(value) {
+  return `${value}\uf8ff`;
+}
+
+function getTodayStart() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function serializeAdminBooking(bookingDoc) {
+  return {
+    docId: bookingDoc.id,
+    ...bookingDoc.data(),
+  };
+}
+
+function getAdminQueryKey() {
+  return state.adminBookingSearch.trim().toLowerCase();
+}
+
+function showAdminTableLoading() {
+  const table = $("#adminBookingTable");
+  if (!table) return;
+  table.innerHTML = `<tr><td colspan="10"><p class="empty-state">Loading bookings...</p></td></tr>`;
+}
+
+async function getFirestoreQueryCount(query) {
+  if (typeof query.count === "function") {
+    const snapshot = await query.count().get();
+    return snapshot.data().count;
+  }
+
+  const snapshot = await query.get();
+  return snapshot.size;
+}
+
+async function fetchAdminBookingTotal() {
+  const queryKey = getAdminQueryKey();
+  const term = state.adminBookingSearch.trim();
+
+  if (queryKey) {
+    const field = getAdminSearchField(term);
+    return getFirestoreQueryCount(bookingsRef.orderBy(field).startAt(term).endAt(makePrefixEnd(term)));
+  }
+
+  const todayStart = toFirestoreTimestamp(getTodayStart());
+  const [upcomingCount, pastCount] = await Promise.all([
+    getFirestoreQueryCount(bookingsRef.where("bookingDate", ">=", todayStart).orderBy("bookingDate", "asc")),
+    getFirestoreQueryCount(bookingsRef.where("bookingDate", "<", todayStart).orderBy("bookingDate", "desc")),
+  ]);
+  return upcomingCount + pastCount;
+}
+
+function renderAdminPaginationControls(totalItems) {
+  const pagination = $("#adminBookingPagination");
+  if (!pagination) return;
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / ADMIN_BOOKINGS_PAGE_SIZE));
+  state.adminBookingPage = Math.min(Math.max(state.adminBookingPage, 1), totalPages);
+  const pageStart = totalItems ? (state.adminBookingPage - 1) * ADMIN_BOOKINGS_PAGE_SIZE + 1 : 0;
+  const pageEnd = Math.min(state.adminBookingPage * ADMIN_BOOKINGS_PAGE_SIZE, totalItems);
+
+  if (!totalItems) {
+    pagination.innerHTML = "";
+    pagination.hidden = true;
+    return;
+  }
+
+  pagination.hidden = false;
+  const pageButtons = getPaginationPages(state.adminBookingPage, totalPages)
+    .map((page) =>
+      page === "..."
+        ? `<span class="pagination-ellipsis">...</span>`
+        : `<button class="${page === state.adminBookingPage ? "active" : ""}" data-page="${page}" type="button">${page}</button>`,
+    )
+    .join("");
+
+  pagination.innerHTML = `
+    <span class="pagination-summary">Showing ${pageStart}-${pageEnd} of ${totalItems} bookings</span>
+    <div class="pagination-controls">
+      <button data-page="${state.adminBookingPage - 1}" type="button" ${state.adminBookingPage === 1 ? "disabled" : ""}>Prev</button>
+      ${pageButtons}
+      <button data-page="${state.adminBookingPage + 1}" type="button" ${state.adminBookingPage === totalPages ? "disabled" : ""}>Next</button>
+    </div>
+  `;
+
+  $$("#adminBookingPagination [data-page]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      state.adminBookingPage = Number(button.dataset.page);
+      await renderAdminDashboard();
+    });
+  });
+}
+
+async function fetchAdminSearchPage(previousPage) {
+  const term = state.adminBookingSearch.trim();
+  const field = getAdminSearchField(term);
+  let query = bookingsRef.orderBy(field).startAt(term).endAt(makePrefixEnd(term)).limit(ADMIN_BOOKINGS_PAGE_SIZE + 1);
+  if (previousPage?.lastDoc) query = query.startAfter(previousPage.lastDoc);
+
+  const snapshot = await query.get();
+  const docs = snapshot.docs.slice(0, ADMIN_BOOKINGS_PAGE_SIZE);
+  return {
+    rows: docs.map(serializeAdminBooking),
+    lastDoc: docs[docs.length - 1] || previousPage?.lastDoc || null,
+    hasNextPage: snapshot.docs.length > ADMIN_BOOKINGS_PAGE_SIZE,
+    mode: "search",
+  };
+}
+
+async function fetchAdminChronologicalPage(previousPage) {
+  let rows = [];
+  let upcomingCursor = previousPage?.upcomingCursor || null;
+  let pastCursor = previousPage?.pastCursor || null;
+  let mode = previousPage?.mode || "upcoming";
+  let hasNextPage = false;
+  const todayStart = toFirestoreTimestamp(getTodayStart());
+
+  if (mode === "upcoming") {
+    let upcomingQuery = bookingsRef
+      .where("bookingDate", ">=", todayStart)
+      .orderBy("bookingDate", "asc")
+      .limit(ADMIN_BOOKINGS_PAGE_SIZE + 1);
+    if (upcomingCursor) upcomingQuery = upcomingQuery.startAfter(upcomingCursor);
+
+    const upcomingSnapshot = await upcomingQuery.get();
+    const upcomingDocs = upcomingSnapshot.docs.slice(0, ADMIN_BOOKINGS_PAGE_SIZE);
+    rows = upcomingDocs.map(serializeAdminBooking);
+    upcomingCursor = upcomingDocs[upcomingDocs.length - 1] || upcomingCursor;
+    hasNextPage = upcomingSnapshot.docs.length > ADMIN_BOOKINGS_PAGE_SIZE;
+
+    if (!hasNextPage && rows.length < ADMIN_BOOKINGS_PAGE_SIZE) {
+      mode = "past";
+    }
+  }
+
+  if (mode === "past" && rows.length < ADMIN_BOOKINGS_PAGE_SIZE) {
+    const remaining = ADMIN_BOOKINGS_PAGE_SIZE - rows.length;
+    let pastQuery = bookingsRef
+      .where("bookingDate", "<", todayStart)
+      .orderBy("bookingDate", "desc")
+      .limit(remaining + 1);
+    if (pastCursor) pastQuery = pastQuery.startAfter(pastCursor);
+
+    const pastSnapshot = await pastQuery.get();
+    const pastDocs = pastSnapshot.docs.slice(0, remaining);
+    rows = [...rows, ...pastDocs.map(serializeAdminBooking)];
+    pastCursor = pastDocs[pastDocs.length - 1] || pastCursor;
+    hasNextPage = pastSnapshot.docs.length > remaining;
+  }
+
+  return { rows, upcomingCursor, pastCursor, hasNextPage, mode };
+}
+
+async function ensureAdminFirestorePage(pageNumber) {
+  const queryKey = getAdminQueryKey();
+  if (state.adminBookingQueryKey !== queryKey) {
+    state.adminBookingPages = [];
+    state.adminBookingQueryKey = queryKey;
+  }
+
+  while (state.adminBookingPages.length < pageNumber) {
+    const previousPage = state.adminBookingPages[state.adminBookingPages.length - 1];
+    if (previousPage && !previousPage.hasNextPage) break;
+    const nextPage = queryKey ? await fetchAdminSearchPage(previousPage) : await fetchAdminChronologicalPage(previousPage);
+    if (!nextPage.rows.length) {
+      if (state.adminBookingPages.length === 0) state.adminBookingPages.push(nextPage);
+      break;
+    }
+    state.adminBookingPages.push(nextPage);
+  }
+
+  return state.adminBookingPages[pageNumber - 1] || { rows: [], hasNextPage: false };
+}
+
+function getBookingSortDate(booking) {
+  const bookingDate = timestampToDate(booking.bookingDate);
+  if (bookingDate && !Number.isNaN(bookingDate.getTime())) return bookingDate;
+  const createdDate = timestampToDate(booking.createdAt);
+  return createdDate && !Number.isNaN(createdDate.getTime()) ? createdDate : new Date(0);
+}
+
+function isPastBooking(booking) {
+  const bookingDate = getBookingSortDate(booking);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return bookingDate < today;
+}
+
+function sortAdminBookings(bookings) {
+  return [...bookings].sort((a, b) => {
+    const aPast = isPastBooking(a);
+    const bPast = isPastBooking(b);
+    if (aPast !== bPast) return aPast ? 1 : -1;
+
+    const aTime = getBookingSortDate(a).getTime();
+    const bTime = getBookingSortDate(b).getTime();
+    return aPast ? bTime - aTime : aTime - bTime;
+  });
+}
+
+function getPaginationPages(currentPage, totalPages) {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  const pages = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) pages.push("...");
+  for (let page = start; page <= end; page += 1) pages.push(page);
+  if (end < totalPages - 1) pages.push("...");
+  pages.push(totalPages);
+  return pages;
+}
+
+function renderAdminPagination(totalItems) {
+  const pagination = $("#adminBookingPagination");
+  if (!pagination) return;
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / ADMIN_BOOKINGS_PAGE_SIZE));
+  state.adminBookingPage = Math.min(Math.max(state.adminBookingPage, 1), totalPages);
+  const pageStart = totalItems ? (state.adminBookingPage - 1) * ADMIN_BOOKINGS_PAGE_SIZE + 1 : 0;
+  const pageEnd = Math.min(state.adminBookingPage * ADMIN_BOOKINGS_PAGE_SIZE, totalItems);
+
+  if (!totalItems) {
+    pagination.innerHTML = "";
+    pagination.hidden = true;
+    return;
+  }
+
+  pagination.hidden = false;
+  const pageButtons = getPaginationPages(state.adminBookingPage, totalPages)
+    .map((page) =>
+      page === "..."
+        ? `<span class="pagination-ellipsis">...</span>`
+        : `<button class="${page === state.adminBookingPage ? "active" : ""}" data-page="${page}" type="button">${page}</button>`,
+    )
+    .join("");
+
+  pagination.innerHTML = `
+    <span class="pagination-summary">Showing ${pageStart}-${pageEnd} of ${totalItems} bookings</span>
+    <div class="pagination-controls">
+      <button data-page="${state.adminBookingPage - 1}" type="button" ${state.adminBookingPage === 1 ? "disabled" : ""}>Prev</button>
+      ${pageButtons}
+      <button data-page="${state.adminBookingPage + 1}" type="button" ${state.adminBookingPage === totalPages ? "disabled" : ""}>Next</button>
+    </div>
+  `;
+
+  $$("#adminBookingPagination [data-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.adminBookingPage = Number(button.dataset.page);
+      renderAdminDashboard();
+    });
+  });
+}
+
+function renderAdminGreeting() {
+  const dateElement = $("#adminCurrentDate");
+  const greetingElement = $("#adminGreeting");
+  if (!dateElement || !greetingElement) return;
+
+  const now = new Date();
+  const hour = now.getHours();
+  dateElement.textContent = now.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
+  greetingElement.textContent = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
+}
+
 // User Dashboard: profile, history, status, payment state, and share action.
 function renderUserDashboard() {
+  if (!$("#userProfileCard") || !$("#userBookingsList")) return;
   const profile = state.currentProfile;
   $("#userProfileCard").innerHTML = profile
     ? `
@@ -1022,7 +1545,8 @@ function renderUserDashboard() {
 }
 
 // Admin Dashboard: overview cards and booking table actions backed by Firestore updates.
-function renderAdminDashboard() {
+async function renderAdminDashboard() {
+  if (!$("#adminMetrics") || !$("#adminBookingTable")) return;
   const bookings = state.allBookings;
   const today = new Date();
   const activeBookings = bookings.filter((booking) => booking.status !== "Cancelled");
@@ -1064,8 +1588,53 @@ function renderAdminDashboard() {
     )
     .join("");
 
-  $("#adminBookingTable").innerHTML = filteredBookings.length
-    ? filteredBookings
+  let visibleBookings = [];
+  let totalItems = filteredBookings.length;
+
+  if (firebaseSdkReady) {
+    const requestId = ++state.adminBookingRequestId;
+    state.adminBookingLoading = true;
+    showAdminTableLoading();
+
+    try {
+      const latestTotal = await fetchAdminBookingTotal();
+      if (state.adminBookingTotal !== latestTotal) {
+        state.adminBookingPages = [];
+        state.adminBookingTotal = latestTotal;
+      }
+      totalItems = state.adminBookingTotal;
+      const totalPages = Math.max(1, Math.ceil(totalItems / ADMIN_BOOKINGS_PAGE_SIZE));
+      state.adminBookingPage = Math.min(Math.max(state.adminBookingPage, 1), totalPages);
+      const page = await ensureAdminFirestorePage(state.adminBookingPage);
+      if (requestId !== state.adminBookingRequestId) return;
+      if (!page.rows.length && state.adminBookingPage > 1) {
+        state.adminBookingPage = Math.max(1, state.adminBookingPages.length);
+        const fallbackPage = state.adminBookingPages[state.adminBookingPage - 1] || { rows: [], hasNextPage: false };
+        visibleBookings = fallbackPage.rows;
+      } else {
+      visibleBookings = page.rows;
+      }
+      const expectedRowsOnPage = Math.max(0, Math.min(ADMIN_BOOKINGS_PAGE_SIZE, totalItems - (state.adminBookingPage - 1) * ADMIN_BOOKINGS_PAGE_SIZE));
+      visibleBookings = visibleBookings.slice(0, expectedRowsOnPage);
+    } catch (error) {
+      if (requestId !== state.adminBookingRequestId) return;
+      $("#adminBookingTable").innerHTML = `<tr><td colspan="10"><p class="empty-state">${error.message || "Could not load bookings."}</p></td></tr>`;
+      renderAdminPaginationControls(0);
+      return;
+    } finally {
+      state.adminBookingLoading = false;
+    }
+  } else {
+    const sortedBookings = sortAdminBookings(filteredBookings);
+    const totalPages = Math.max(1, Math.ceil(sortedBookings.length / ADMIN_BOOKINGS_PAGE_SIZE));
+    state.adminBookingPage = Math.min(Math.max(state.adminBookingPage, 1), totalPages);
+    const pageStart = (state.adminBookingPage - 1) * ADMIN_BOOKINGS_PAGE_SIZE;
+    visibleBookings = sortedBookings.slice(pageStart, pageStart + ADMIN_BOOKINGS_PAGE_SIZE);
+    totalItems = sortedBookings.length;
+  }
+
+  $("#adminBookingTable").innerHTML = visibleBookings.length
+    ? visibleBookings
         .map(
           (booking) => `
       <tr>
@@ -1080,16 +1649,17 @@ function renderAdminDashboard() {
         <td>${renderStatusPill(booking.paymentStatus)}</td>
         <td>
           <div class="table-actions">
-            <button data-action="checked-in" data-id="${booking.docId || booking.bookingId}" type="button">Checked-In</button>
-            <button data-action="paid" data-id="${booking.docId || booking.bookingId}" type="button">Paid</button>
-            <button data-action="cancelled" data-id="${booking.docId || booking.bookingId}" type="button">Cancelled</button>
+            ${renderBookingActions(booking)}
           </div>
         </td>
       </tr>
     `,
         )
         .join("")
-    : `<tr><td colspan="11"><p class="empty-state">No bookings found.</p></td></tr>`;
+    : `<tr><td colspan="10"><p class="empty-state">No bookings found.</p></td></tr>`;
+
+  if (firebaseSdkReady) renderAdminPaginationControls(totalItems);
+  else renderAdminPagination(totalItems);
 
   $$("#adminBookingTable [data-action]").forEach((button) => {
     button.addEventListener("click", () => updateBookingFromAdmin(button.dataset.id, button.dataset.action, button));
@@ -1113,6 +1683,8 @@ async function updateBookingFromAdmin(docId, action, button) {
   try {
     if (firebaseSdkReady) {
       await bookingsRef.doc(docId).update(updates);
+      resetAdminBookingPager();
+      await renderAdminDashboard();
     } else {
       state.allBookings = state.allBookings.map((booking) => (booking.bookingId === docId ? { ...booking, ...updates } : booking));
       state.userBookings = state.userBookings.map((booking) => (booking.bookingId === docId ? { ...booking, ...updates } : booking));
@@ -1130,7 +1702,7 @@ async function updateBookingFromAdmin(docId, action, button) {
 // Admin Route Protection: block non-admins from rendering the admin panel.
 function protectAdminRoute() {
   if (state.currentProfile?.role !== "admin") {
-    showView("player");
+    navigateToHome(true);
     showAlert("Admin access is restricted.", "error");
     return false;
   }
@@ -1138,48 +1710,51 @@ function protectAdminRoute() {
 }
 
 function bindEvents() {
-  $("#continueButton").addEventListener("click", showDetailsModal);
-  $("#newBookingButton").addEventListener("click", () => {
-    showView("player");
-    setTimeout(() => $("#book").scrollIntoView({ behavior: "smooth" }), 100);
+  prepareAuthForm();
+  $("#continueButton")?.addEventListener("click", showDetailsModal);
+  $("#newBookingButton")?.addEventListener("click", () => {
+    navigateToHome();
+    setTimeout(() => $("#book")?.scrollIntoView({ behavior: "smooth" }), 100);
   });
-  $("#loginButton").addEventListener("click", () => openAuthModal());
-  $("#adminPanelButton").addEventListener("click", () => {
-    if (protectAdminRoute()) showView("admin");
+  $("#loginButton")?.addEventListener("click", () => openAuthModal());
+  $("#adminPanelButton")?.addEventListener("click", () => {
+    if (protectAdminRoute()) navigateToAdmin();
   });
-  $("#adminBookingSearch").addEventListener("input", (event) => {
+  $("#adminBookingSearch")?.addEventListener("input", (event) => {
     state.adminBookingSearch = event.target.value;
+    resetAdminBookingPager();
     renderAdminDashboard();
   });
-  $("#logoutButton").addEventListener("click", async () => {
+  $("#logoutButton")?.addEventListener("click", async () => {
     if (firebaseSdkReady) await auth.signOut();
     state.currentUser = null;
     state.currentProfile = null;
     state.userBookings = [];
     updateAuthUI();
-    showView("player");
+    navigateToHome(true);
     showAlert("Logged out.");
   });
-  elements.authForm.addEventListener("submit", handleAuthSubmit);
+  elements.authForm?.addEventListener("submit", handleAuthSubmit);
   $$(".modal-close, [data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal($(`#${button.dataset.close}`)));
   });
-  [elements.detailsModal, elements.confirmationModal, elements.authModal].forEach((modal) => {
+  [elements.detailsModal, elements.confirmationModal, elements.authModal].filter(Boolean).forEach((modal) => {
     modal.addEventListener("click", (event) => {
       if (event.target === modal) closeModal(modal);
     });
   });
-  elements.bookingForm.addEventListener("submit", (event) => {
+  elements.bookingForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     confirmBooking(new FormData(elements.bookingForm), event.submitter);
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      [elements.confirmationModal, elements.detailsModal, elements.authModal].forEach((modal) => {
+      [elements.confirmationModal, elements.detailsModal, elements.authModal].filter(Boolean).forEach((modal) => {
         if (!modal.hidden) closeModal(modal);
       });
     }
   });
+  window.addEventListener("popstate", () => renderRoute({ showDenied: true }));
 }
 
 async function bootAuth() {
@@ -1188,6 +1763,7 @@ async function bootAuth() {
     subscribeToBookings();
     renderUserDashboard();
     renderAdminDashboard();
+    renderRoute({ showDenied: isAdminRoute() });
     return;
   }
 
@@ -1196,6 +1772,7 @@ async function bootAuth() {
     renderUserDashboard();
     subscribeToBookings();
     renderAdminDashboard();
+    renderRoute({ showDenied: isAdminRoute() });
     showAlert("Firebase config detected. Using REST fallback because Firebase SDK scripts did not load.", "info");
     return;
   }
@@ -1216,9 +1793,14 @@ async function bootAuth() {
       }
       updateAuthUI();
       subscribeToBookings();
+      renderRoute();
     } else {
       updateAuthUI();
-      showView("player");
+      if (isAdminRoute()) {
+        renderRoute({ showDenied: true });
+      } else {
+        renderRoute();
+      }
       renderUserDashboard();
       subscribeToBookings();
       renderAdminDashboard();
@@ -1230,6 +1812,7 @@ async function bootAuth() {
 renderSports();
 renderDates();
 renderAvailability();
+renderAdminGreeting();
 bindEvents();
 bootAuth();
 

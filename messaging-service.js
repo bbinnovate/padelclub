@@ -1,7 +1,9 @@
 // Service layer for booking confirmation SMS and WhatsApp delivery.
 // Provider credentials belong in backend functions, never in the browser.
 window.PadelMessagingService = {
-  senderNumber: "8879961503",
+  get senderNumber() {
+    return window.PADEL_MESSAGE_CONFIG?.senderNumber || "";
+  },
 
   buildConfirmationMessage(booking, formatCurrency, formatBookingDate) {
     return [

@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    {
+      "source": "/config.js",
+      "destination": "/api/config.js"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/admin/",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/login.html"
+    },
+    {
+      "source": "/login/",
+      "destination": "/login.html"
+    }
+  ]
+}

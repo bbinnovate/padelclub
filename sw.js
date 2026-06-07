@@ -1,11 +1,11 @@
-const CACHE_NAME = "padel-club-v7";
+const CACHE_NAME = "padel-club-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./admin.html",
+  "./login.html",
   "./styles.css",
   "./app.js",
-  "./firebase-config.js",
-  "./message-config.js",
   "./messaging-service.js",
   "./manifest.webmanifest",
   "./assets/gallery/padel-court.png",
@@ -30,7 +30,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(event.request).catch(() => caches.match("./index.html")));
     return;
   }
-  if (["script", "style"].includes(event.request.destination) || event.request.url.includes("firebase-config.js")) {
+  if (event.request.url.includes("config.js")) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  if (["script", "style"].includes(event.request.destination)) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
