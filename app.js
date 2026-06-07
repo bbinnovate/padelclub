@@ -542,17 +542,37 @@ function showDetailsModal() {
   }
 
   $("#modalSummary").innerHTML = `
-    <div><small>Sport</small><strong>${selection.sport.name}</strong></div>
-    <div><small>Facility</small><strong>${selection.facility.name}</strong></div>
-    <div><small>Date</small><strong>${selection.date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</strong></div>
-    <div><small>Time</small><strong>${selection.startTime} - ${selection.endTime}</strong></div>
-    <div><small>Duration</small><strong>${selection.durationLabel}</strong></div>
-    <div><small>Amount</small><strong>${formatCurrency(selection.price)}</strong></div>
+  <div>
+  <small>Sport</small>
+  <strong style="display:block; margin:0; line-height:1.1;">
+    ${selection.sport.name}
+  </strong>
+  <strong style="display:block; margin:0; line-height:1.1;">
+    ${selection.facility.name}
+  </strong>
+</div>
+
+<div>
+  <small>Date & Time</small>
+  <strong style="display:block; margin:0; line-height:1.1;">
+    ${selection.date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+    })}
+  </strong>
+  <strong style="display:block; margin:0; line-height:1.1;">
+    ${selection.startTime} - ${selection.endTime}
+  </strong>
+</div>
+
+<div>
+  <small>Duration</small>
+  <strong>${selection.durationLabel}</strong>
+</div>
   `;
   $("#playerOptions").innerHTML = selection.sport.players
     .map(
       (players, index) => `
-    <label><input type="radio" name="players" value="${players}" ${index === selection.sport.players.length - 1 ? "checked" : ""} /><span>${players}</span></label>
   `,
     )
     .join("");
@@ -745,9 +765,6 @@ function showConfirmation(booking) {
     <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime} - ${booking.endTime}`}</strong></div>
     <div><small>Booking ID</small><strong>${booking.bookingId}</strong></div>
     <div><small>Booking Token</small><strong>${booking.bookingToken}</strong></div>
-    <div><small>Status</small><strong>${booking.status}</strong></div>
-    <div><small>Payment</small><strong>${booking.paymentStatus}</strong></div>
-    <div><small>Players</small><strong>${booking.players} players</strong></div>
   `;
   $("#whatsappButton").href = buildWhatsAppShareUrl(booking);
   $("#downloadButton").onclick = () => downloadConfirmation(buildConfirmationMessage(booking));
@@ -930,21 +947,31 @@ function updateAuthUI() {
 
 // Firestore Live Data: admins see and manage every booking.
 function subscribeToBookings() {
-  if (!firebaseSdkReady || !state.currentUser || state.currentProfile?.role !== "admin") {
-    renderAdminDashboard();
+  if (!firebaseSdkReady) {
     renderAvailability();
     return;
   }
 
-  if (window.unsubscribeAdminBookings) window.unsubscribeAdminBookings();
+  if (window.unsubscribeAdminBookings) {
+    window.unsubscribeAdminBookings();
+  }
 
-  window.unsubscribeAdminBookings = bookingsRef.orderBy("createdAt", "desc").onSnapshot(
+  window.unsubscribeAdminBookings = bookingsRef.onSnapshot(
     (snapshot) => {
-      state.allBookings = snapshot.docs.map((doc) => ({ docId: doc.id, ...doc.data() }));
-      renderAdminDashboard();
+      state.allBookings = snapshot.docs.map((doc) => ({
+        docId: doc.id,
+        ...doc.data(),
+      }));
+
       renderAvailability();
+
+      if (state.currentProfile?.role === "admin") {
+        renderAdminDashboard();
+      }
     },
-    (error) => showAlert(error.message || "Could not load admin bookings.", "error"),
+    (error) => {
+      console.error(error);
+    }
   );
 }
 
@@ -1158,6 +1185,7 @@ function bindEvents() {
 async function bootAuth() {
   if (!firebaseReady) {
     updateAuthUI();
+    subscribeToBookings();
     renderUserDashboard();
     renderAdminDashboard();
     return;
@@ -1166,6 +1194,7 @@ async function bootAuth() {
   if (firebaseRestReady) {
     updateAuthUI();
     renderUserDashboard();
+    subscribeToBookings();
     renderAdminDashboard();
     showAlert("Firebase config detected. Using REST fallback because Firebase SDK scripts did not load.", "info");
     return;
@@ -1191,6 +1220,7 @@ async function bootAuth() {
       updateAuthUI();
       showView("player");
       renderUserDashboard();
+      subscribeToBookings();
       renderAdminDashboard();
       renderAvailability();
     }

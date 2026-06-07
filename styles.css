@@ -90,6 +90,23 @@ h1 em, h2 em { font-style: normal; color: var(--lime); -webkit-text-stroke: 0; }
 .booking-app { max-width: 1300px; margin: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--white); overflow: hidden; box-shadow: 0 25px 80px rgba(24,32,45,.08); }
 .step-strip { min-height: 65px; display: flex; align-items: stretch; background: var(--ink); color: var(--white); }
 .step { min-width: 180px; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-right: 1px solid #2d3440; opacity: .4; font-size: 11px; font-weight: 700; }
+.booking-title {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--white);
+}
+
+.step-strip {
+  min-height: 65px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--ink);
+  color: var(--white);
+}
 .step b { color: var(--lime); }
 .step.active { opacity: 1; background: #151c28; }
 .live-indicator { margin-left: auto; padding: 0 24px; display: flex; align-items: center; gap: 8px; color: #a9b1bd; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
