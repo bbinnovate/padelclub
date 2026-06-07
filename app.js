@@ -156,25 +156,6 @@ async function firebaseRestRequest(url, options = {}) {
   return data;
 }
 
-async function registerWithFirebaseRest({ name, email, password, phoneNumber }) {
-  const signUp = await firebaseRestRequest(`${FIREBASE_AUTH_BASE_URL}/accounts:signUp?key=${firebaseConfig.apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, returnSecureToken: true }),
-  });
-
-  await firebaseRestRequest(`${FIREBASE_AUTH_BASE_URL}/accounts:update?key=${firebaseConfig.apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken: signUp.idToken, displayName: name, returnSecureToken: true }),
-  });
-
-  return {
-    user: { uid: signUp.localId, email, displayName: name, idToken: signUp.idToken },
-    phoneNumber,
-  };
-}
-
 async function loginWithFirebaseRest({ email, password }) {
   const login = await firebaseRestRequest(`${FIREBASE_AUTH_BASE_URL}/accounts:signInWithPassword?key=${firebaseConfig.apiKey}`, {
     method: "POST",
@@ -186,14 +167,15 @@ async function loginWithFirebaseRest({ email, password }) {
 }
 
 async function setFirestoreRestDocument(collection, docId, data, idToken, merge = false) {
-  const updateMask = merge ? Object.keys(data).map((key) => `updateMask.fieldPaths=${encodeURIComponent(key)}`).join("&") : "";
-  const separator = updateMask ? "?" : "";
-  return firebaseRestRequest(`${FIRESTORE_BASE_URL}/${collection}/${docId}${separator}${updateMask}`, {
+  const queryParams = [];
+  if (!idToken && firebaseConfig.apiKey) queryParams.push(`key=${encodeURIComponent(firebaseConfig.apiKey)}`);
+  if (merge) Object.keys(data).forEach((key) => queryParams.push(`updateMask.fieldPaths=${encodeURIComponent(key)}`));
+  const queryString = queryParams.length ? `?${queryParams.join("&")}` : "";
+  const headers = { "Content-Type": "application/json" };
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+  return firebaseRestRequest(`${FIRESTORE_BASE_URL}/${collection}/${docId}${queryString}`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
-    },
+    headers,
     body: JSON.stringify(toFirestoreDocument(data)),
   });
 }
@@ -303,6 +285,22 @@ function formatBookingDate(value) {
   });
 }
 
+function formatBookingDateOnly(value) {
+  const date = timestampToDate(value);
+  if (!date || Number.isNaN(date.getTime())) return "Not set";
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function makeCustomerId(email, phoneNumber) {
+  const source = (email || phoneNumber || "guest").trim().toLowerCase();
+  const safe = source.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `CUS-${safe || Date.now()}`;
+}
+
 function showAlert(message, type = "success") {
   const alert = document.createElement("div");
   alert.className = `app-alert ${type}`;
@@ -323,7 +321,7 @@ function getFirebaseErrorMessage(error) {
   }
 
   if (code.includes("auth/email-already-in-use") || code.includes("email_exists")) {
-    return "This email is already registered. Please login instead.";
+    return "This email is already registered.";
   }
 
   if (code.includes("auth/invalid-credential") || code.includes("invalid_password") || code.includes("email_not_found")) {
@@ -331,7 +329,7 @@ function getFirebaseErrorMessage(error) {
   }
 
   if (code.includes("permission-denied") || code.includes("permission_denied")) {
-    return "Firestore rejected the write. Confirm the deployed rules are for project padelclub-26d57 and the user is authenticated.";
+    return "Firestore rejected the booking write. Deploy the latest firestore.rules and indexes, then hard refresh the app.";
   }
 
   return error?.message || "Something went wrong. Please try again.";
@@ -536,12 +534,6 @@ function updateBookingBar() {
 }
 
 function showDetailsModal() {
-  if (!state.currentUser) {
-    openAuthModal("login");
-    showAlert("Please login or register before confirming a booking.", "error");
-    return;
-  }
-
   const selection = getSelection();
   if (state.selectedSlots.length < 2) {
     showMessage("Please select at least two consecutive 30-minute slots to make a 1-hour booking.", "error");
@@ -565,9 +557,9 @@ function showDetailsModal() {
     )
     .join("");
 
-  elements.bookingForm.elements.name.value = state.currentProfile?.name || state.currentUser.displayName || "";
+  elements.bookingForm.elements.name.value = state.currentProfile?.name || state.currentUser?.displayName || "";
   elements.bookingForm.elements.mobile.value = state.currentProfile?.phoneNumber || "";
-  elements.bookingForm.elements.email.value = state.currentProfile?.email || state.currentUser.email || "";
+  elements.bookingForm.elements.email.value = state.currentProfile?.email || state.currentUser?.email || "";
   elements.detailsModal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -585,28 +577,22 @@ function makeVerificationCode() {
 
 // WhatsApp Share Booking: generate the prefilled sharing URL from booking details.
 function buildWhatsAppShareUrl(booking) {
-  const message = [
-    "Booking Details",
-    "",
-    `Name: ${booking.name}`,
-    `Email: ${booking.email}`,
-    `Booking ID: ${booking.bookingId}`,
-    `Booking Token: ${booking.bookingToken}`,
-  ].join("\n");
-  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/?text=${encodeURIComponent(buildConfirmationMessage(booking))}`;
 }
 
 function buildConfirmationMessage(booking) {
   return [
-    "Padel Club booking confirmation",
+    "Booking Confirmed",
+    "",
+    `Name: ${booking.name}`,
+    `Phone: ${booking.phoneNumber}`,
+    `Email: ${booking.email}`,
+    `Sport: ${booking.sportName}`,
+    `Court: ${booking.courtName || booking.facilityName}`,
+    `Date: ${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}`,
+    `Time: ${booking.timeSlot || `${booking.startTime} - ${booking.endTime}`}`,
     `Booking ID: ${booking.bookingId}`,
     `Booking Token: ${booking.bookingToken}`,
-    `Name: ${booking.name}`,
-    `Email: ${booking.email}`,
-    `Phone: ${booking.phoneNumber}`,
-    `${booking.sportName} - ${booking.facilityName}`,
-    `${formatBookingDate(booking.bookingDate)} - ${booking.startTime} to ${booking.endTime}`,
-    `Amount due: ${formatCurrency(booking.amount)}`,
   ].join("\n");
 }
 
@@ -675,57 +661,52 @@ async function confirmBooking(formData, submitButton) {
     const bookingToken = makeVerificationCode();
     const players = formData.get("players");
     const bookingDate = toBookingDate(selection);
+    const name = formData.get("name").trim();
+    const email = formData.get("email").trim();
+    const phoneNumber = formData.get("mobile").trim();
+    const customerId = makeCustomerId(email, phoneNumber);
+    const createdAt = firebaseSdkReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString();
+    const customer = {
+      customerId,
+      name,
+      email,
+      phoneNumber,
+      createdAt,
+      updatedAt: createdAt,
+    };
     const booking = {
       bookingId,
       bookingToken,
-      userId: state.currentUser.uid,
-      name: formData.get("name").trim(),
-      email: formData.get("email").trim(),
-      phoneNumber: formData.get("mobile").trim(),
+      userId: null,
+      customerId,
+      name,
+      email,
+      phoneNumber,
       bookingDate: firebaseSdkReady ? firebase.firestore.Timestamp.fromDate(bookingDate) : bookingDate.toISOString(),
       status: "Pending",
       paymentStatus: "Unpaid",
-      createdAt: firebaseSdkReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+      createdAt,
       sportKey: state.selectedSport,
       sportName: selection.sport.name,
       facilityId: selection.facility.id,
       facilityName: selection.facility.name,
+      courtName: selection.facility.name,
+      bookingDateLabel: formatBookingDateOnly(bookingDate),
       slotIndexes: selection.slots,
       startTime: selection.startTime,
       endTime: selection.endTime,
+      timeSlot: `${selection.startTime} - ${selection.endTime}`,
       durationLabel: selection.durationLabel,
       amount: selection.price,
       players: Number(players),
     };
 
     if (firebaseSdkReady) {
+      await db.collection("Customers").doc(customerId).set(customer);
       await bookingsRef.doc(bookingId).set(booking);
-      await usersRef.doc(state.currentUser.uid).set(
-        {
-          uid: state.currentUser.uid,
-          name: booking.name,
-          email: booking.email,
-          phoneNumber: booking.phoneNumber,
-          role: state.currentProfile?.role || "user",
-          createdAt: state.currentProfile?.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
     } else if (firebaseRestReady) {
-      await setFirestoreRestDocument("Bookings", bookingId, booking, state.currentUser.idToken);
-      await setFirestoreRestDocument(
-        "Users",
-        state.currentUser.uid,
-        {
-          uid: state.currentUser.uid,
-          name: booking.name,
-          email: booking.email,
-          phoneNumber: booking.phoneNumber,
-          role: state.currentProfile?.role || "user",
-        },
-        state.currentUser.idToken,
-        true,
-      );
+      await setFirestoreRestDocument("Customers", customerId, customer);
+      await setFirestoreRestDocument("Bookings", bookingId, booking);
     } else {
       state.userBookings.unshift({ ...booking, createdAt: new Date().toISOString() });
       state.allBookings.unshift({ ...booking, createdAt: new Date().toISOString() });
@@ -756,11 +737,14 @@ function showConfirmation(booking) {
   $("#confirmationAmount").textContent = formatCurrency(booking.amount);
   $("#confirmationDetails").innerHTML = `
     <div><small>Name</small><strong>${booking.name}</strong></div>
+    <div><small>Phone</small><strong>${booking.phoneNumber}</strong></div>
     <div><small>Email</small><strong>${booking.email}</strong></div>
     <div><small>Sport</small><strong>${booking.sportName}</strong></div>
-    <div><small>Date</small><strong>${formatBookingDate(booking.bookingDate)}</strong></div>
-    <div><small>Time</small><strong>${booking.startTime} - ${booking.endTime}</strong></div>
-    <div><small>Facility</small><strong>${booking.facilityName}</strong></div>
+    <div><small>Court</small><strong>${booking.courtName || booking.facilityName}</strong></div>
+    <div><small>Date</small><strong>${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}</strong></div>
+    <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime} - ${booking.endTime}`}</strong></div>
+    <div><small>Booking ID</small><strong>${booking.bookingId}</strong></div>
+    <div><small>Booking Token</small><strong>${booking.bookingToken}</strong></div>
     <div><small>Status</small><strong>${booking.status}</strong></div>
     <div><small>Payment</small><strong>${booking.paymentStatus}</strong></div>
     <div><small>Players</small><strong>${booking.players} players</strong></div>
@@ -790,92 +774,58 @@ function closeModal(modal) {
   }
 }
 
-// Authentication System: login/register modal backed by Firebase Authentication.
-function openAuthModal(mode) {
-  elements.authForm.dataset.mode = mode;
-  $("#authTitle").innerHTML = mode === "register" ? "CREATE<br><em>ACCOUNT.</em>" : "WELCOME<br><em>BACK.</em>";
-  $("#authSubmit").textContent = mode === "register" ? "Register" : "Login";
-  $("#authNameField").hidden = mode !== "register";
-  $("#authPhoneField").hidden = mode !== "register";
-  elements.authForm.elements.name.required = mode === "register";
-  elements.authForm.elements.phoneNumber.required = mode === "register";
-  $("#authToggleText").textContent = mode === "register" ? "Already registered?" : "New here?";
-  $("#authToggle").textContent = mode === "register" ? "Login" : "Register";
+// Authentication System: admin login only; customers book without accounts.
+function openAuthModal() {
+  elements.authForm.dataset.mode = "admin";
+  $("#authTitle").innerHTML = "ADMIN<br><em>LOGIN.</em>";
+  $("#authSubmit").textContent = "Login";
+  $("#authNameField").hidden = true;
+  $("#authPhoneField").hidden = true;
+  elements.authForm.elements.name.required = false;
+  elements.authForm.elements.phoneNumber.required = false;
+  $("#authToggleText").textContent = "Admin access only.";
+  $("#authToggle").hidden = true;
   elements.authModal.hidden = false;
   document.body.style.overflow = "hidden";
 }
 
 async function handleAuthSubmit(event) {
   event.preventDefault();
-  const mode = elements.authForm.dataset.mode || "login";
   const submitButton = $("#authSubmit");
-  setButtonLoading(submitButton, true, mode === "register" ? "Creating..." : "Logging in...");
+  setButtonLoading(submitButton, true, "Logging in...");
 
   try {
-    if (!firebaseReady) {
-      state.currentUser = {
-        uid: "demo-user",
-        email: elements.authForm.elements.email.value,
-        displayName: elements.authForm.elements.name.value || "Demo User",
-      };
-      state.currentProfile = {
-        uid: "demo-user",
-        name: state.currentUser.displayName,
-        email: state.currentUser.email,
-        phoneNumber: elements.authForm.elements.phoneNumber.value || "",
-        role: state.currentUser.email.includes("admin") ? "admin" : "user",
-        createdAt: new Date().toISOString(),
-      };
-      closeModal(elements.authModal);
-      updateAuthUI();
-      showAlert("Demo login active. Add Firebase config to use real authentication.", "info");
-      return;
-    }
+    if (!firebaseReady) throw new Error("Firebase admin authentication is not configured.");
 
     if (firebaseRestReady) {
-      if (mode === "register") {
-        const credential = await registerWithFirebaseRest({
-          name: elements.authForm.elements.name.value,
-          email: elements.authForm.elements.email.value,
-          password: elements.authForm.elements.password.value,
-          phoneNumber: elements.authForm.elements.phoneNumber.value,
-        });
-        state.currentUser = credential.user;
-        state.currentProfile = await saveAndVerifyUserProfile(credential.user, {
-          name: credential.user.displayName,
-          phoneNumber: credential.phoneNumber,
-          role: "user",
-        });
-      } else {
-        state.currentUser = await loginWithFirebaseRest({
-          email: elements.authForm.elements.email.value,
-          password: elements.authForm.elements.password.value,
-        });
-        state.currentProfile = await loadUserProfile(state.currentUser);
-      }
+      state.currentUser = await loginWithFirebaseRest({
+        email: elements.authForm.elements.email.value,
+        password: elements.authForm.elements.password.value,
+      });
+      state.currentProfile = await loadUserProfile(state.currentUser);
+      if (state.currentProfile?.role !== "admin") throw new Error("Admin access is restricted.");
       updateAuthUI();
-      renderUserDashboard();
       closeModal(elements.authModal);
-      showAlert(mode === "register" ? "Registration complete and saved to Firestore." : "Logged in successfully.");
+      showAlert("Admin logged in successfully.");
       return;
     }
 
-    let credential;
-    if (mode === "register") {
-      credential = await auth.createUserWithEmailAndPassword(elements.authForm.elements.email.value, elements.authForm.elements.password.value);
-      await credential.user.updateProfile({ displayName: elements.authForm.elements.name.value });
-      const profile = await saveAndVerifyUserProfile(credential.user, {
-        name: elements.authForm.elements.name.value,
-        phoneNumber: elements.authForm.elements.phoneNumber.value,
-        role: "user",
-      });
-      state.currentProfile = profile;
-    } else {
-      credential = await auth.signInWithEmailAndPassword(elements.authForm.elements.email.value, elements.authForm.elements.password.value);
+    const credential = await auth.signInWithEmailAndPassword(elements.authForm.elements.email.value, elements.authForm.elements.password.value);
+    state.currentProfile = await loadUserProfile(credential.user);
+    if (state.currentProfile?.role !== "admin") {
+      await auth.signOut();
+      state.currentUser = null;
+      state.currentProfile = null;
+      throw new Error("Admin access is restricted.");
     }
     closeModal(elements.authModal);
-    showAlert(mode === "register" ? "Registration complete." : "Logged in successfully.");
+    showAlert("Admin logged in successfully.");
   } catch (error) {
+    if (String(error?.message || "").includes("Admin access is restricted")) {
+      state.currentUser = null;
+      state.currentProfile = null;
+      updateAuthUI();
+    }
     showAlert(getFirebaseErrorMessage(error), "error");
   } finally {
     setButtonLoading(submitButton, false);
@@ -970,50 +920,32 @@ async function loadUserProfile(user) {
 function updateAuthUI() {
   const loggedIn = Boolean(state.currentUser);
   const isAdmin = state.currentProfile?.role === "admin";
-  $("#loginButton").hidden = loggedIn;
-  $("#registerButton").hidden = loggedIn;
+  $("#loginButton").hidden = isAdmin;
+  $("#registerButton").hidden = true;
   $("#logoutButton").hidden = !loggedIn;
-  $("#userDashboardButton").hidden = !loggedIn || isAdmin;
   $("#adminPanelButton").hidden = !loggedIn || !isAdmin;
   $("#accountName").hidden = !loggedIn;
   $("#accountName").textContent = loggedIn ? state.currentProfile?.name || state.currentUser.email : "";
 }
 
-// Firestore Live Data: users see their bookings; admins see and manage every booking.
+// Firestore Live Data: admins see and manage every booking.
 function subscribeToBookings() {
-  if (!firebaseSdkReady || !state.currentUser) {
-    renderUserDashboard();
+  if (!firebaseSdkReady || !state.currentUser || state.currentProfile?.role !== "admin") {
     renderAdminDashboard();
     renderAvailability();
     return;
   }
 
-  if (window.unsubscribeUserBookings) window.unsubscribeUserBookings();
   if (window.unsubscribeAdminBookings) window.unsubscribeAdminBookings();
 
-  window.unsubscribeUserBookings = bookingsRef
-    .where("userId", "==", state.currentUser.uid)
-    .orderBy("createdAt", "desc")
-    .onSnapshot(
-      (snapshot) => {
-        state.userBookings = snapshot.docs.map((doc) => ({ docId: doc.id, ...doc.data() }));
-        if (state.currentProfile?.role !== "admin") state.allBookings = state.userBookings;
-        renderUserDashboard();
-        renderAvailability();
-      },
-      (error) => showAlert(error.message || "Could not load your bookings.", "error"),
-    );
-
-  if (state.currentProfile?.role === "admin") {
-    window.unsubscribeAdminBookings = bookingsRef.orderBy("createdAt", "desc").onSnapshot(
-      (snapshot) => {
-        state.allBookings = snapshot.docs.map((doc) => ({ docId: doc.id, ...doc.data() }));
-        renderAdminDashboard();
-        renderAvailability();
-      },
-      (error) => showAlert(error.message || "Could not load admin bookings.", "error"),
-    );
-  }
+  window.unsubscribeAdminBookings = bookingsRef.orderBy("createdAt", "desc").onSnapshot(
+    (snapshot) => {
+      state.allBookings = snapshot.docs.map((doc) => ({ docId: doc.id, ...doc.data() }));
+      renderAdminDashboard();
+      renderAvailability();
+    },
+    (error) => showAlert(error.message || "Could not load admin bookings.", "error"),
+  );
 }
 
 function showView(view) {
@@ -1050,7 +982,7 @@ function renderUserDashboard() {
       <article class="booking-history-card">
         <div>
           <small>${formatBookingDate(booking.bookingDate)}</small>
-          <h3>${booking.sportName || "Booking"} - ${booking.facilityName || "Court"}</h3>
+          <h3>${booking.sportName || "Booking"} - ${booking.courtName || booking.facilityName || "Court"}</h3>
           <p>${booking.bookingId} / ${booking.bookingToken}</p>
         </div>
         <div class="booking-statuses">${renderStatusPill(booking.status)}${renderStatusPill(booking.paymentStatus)}</div>
@@ -1113,7 +1045,7 @@ function renderAdminDashboard() {
         <td>${booking.bookingId}</td>
         <td>${booking.bookingToken}</td>
         <td>${booking.sportName || "-"}</td>
-        <td>${booking.facilityName || "-"}</td>
+        <td>${booking.courtName || booking.facilityName || "-"}</td>
         <td>${booking.name}</td>
         <td>${booking.phoneNumber}</td>
         <td>${formatBookingDate(booking.bookingDate)}</td>
@@ -1184,8 +1116,7 @@ function bindEvents() {
     showView("player");
     setTimeout(() => $("#book").scrollIntoView({ behavior: "smooth" }), 100);
   });
-  $("#loginButton").addEventListener("click", () => openAuthModal("login"));
-  $("#registerButton").addEventListener("click", () => openAuthModal("register"));
+  $("#loginButton").addEventListener("click", () => openAuthModal());
   $("#adminPanelButton").addEventListener("click", () => {
     if (protectAdminRoute()) showView("admin");
   });
@@ -1193,7 +1124,6 @@ function bindEvents() {
     state.adminBookingSearch = event.target.value;
     renderAdminDashboard();
   });
-  $("#userDashboardButton").addEventListener("click", () => showView("user"));
   $("#logoutButton").addEventListener("click", async () => {
     if (firebaseSdkReady) await auth.signOut();
     state.currentUser = null;
@@ -1203,7 +1133,6 @@ function bindEvents() {
     showView("player");
     showAlert("Logged out.");
   });
-  $("#authToggle").addEventListener("click", () => openAuthModal(elements.authForm.dataset.mode === "register" ? "login" : "register"));
   elements.authForm.addEventListener("submit", handleAuthSubmit);
   $$(".modal-close, [data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal($(`#${button.dataset.close}`)));
@@ -1249,6 +1178,13 @@ async function bootAuth() {
     state.allBookings = [];
     if (user) {
       await loadUserProfile(user);
+      if (state.currentProfile?.role !== "admin") {
+        await auth.signOut();
+        state.currentUser = null;
+        state.currentProfile = null;
+        showAlert("Admin access is restricted.", "error");
+        return;
+      }
       updateAuthUI();
       subscribeToBookings();
     } else {

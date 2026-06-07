@@ -37,13 +37,48 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    match /Customers/{customerId} {
+      allow get: if true;
+      allow create, update: if request.resource.data.customerId == customerId
+        && request.resource.data.keys().hasAll([
+          "customerId",
+          "name",
+          "email",
+          "phoneNumber",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "customerId",
+          "name",
+          "email",
+          "phoneNumber",
+          "createdAt",
+          "updatedAt"
+        ]);
+      allow list, delete: if isAdmin();
+    }
+
     match /Bookings/{bookingId} {
-      allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid
+      allow create: if request.resource.data.keys().hasAll([
+          "bookingId",
+          "bookingToken",
+          "customerId",
+          "name",
+          "email",
+          "phoneNumber",
+          "sportName",
+          "courtName",
+          "bookingDate",
+          "timeSlot",
+          "status",
+          "paymentStatus",
+          "createdAt"
+        ])
         && request.resource.data.bookingId == bookingId
         && request.resource.data.status == "Pending"
         && request.resource.data.paymentStatus == "Unpaid";
-      allow read: if isAdmin() || resource.data.userId == request.auth.uid;
+      allow read: if isAdmin();
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(["status", "paymentStatus"]);

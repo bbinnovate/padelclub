@@ -37,16 +37,12 @@
 
       <div class="topbar-actions">
         <span class="account-name" id="accountName" hidden></span>
-        <button class="mode-switch" id="userDashboardButton" type="button" hidden>
-          <span class="mode-dot"></span>
-          <span>My Bookings</span>
-        </button>
         <button class="mode-switch" id="adminPanelButton" type="button" hidden>
           <span class="mode-dot"></span>
           <span>Admin Panel</span>
         </button>
-        <button class="mode-switch" id="loginButton" type="button">Login</button>
-        <button class="mode-switch" id="registerButton" type="button">Register</button>
+        <button class="mode-switch" id="loginButton" type="button">Admin Login</button>
+        <button class="mode-switch" id="registerButton" type="button" hidden>Register</button>
         <button class="mode-switch" id="logoutButton" type="button" hidden>Logout</button>
         <a class="mini-cta" href="#book">Play now <span>↗</span></a>
       </div>
@@ -250,7 +246,7 @@
                   <th>Booking ID</th>
                   <th>Booking Token</th>
                   <th>Sport Name</th>
-                  <th>Padel Court Name</th>
+                  <th>Court Name</th>
                   <th>Name</th>
                   <th>Phone Number</th>
                   <th>Booking Date</th>
@@ -310,15 +306,15 @@
     <div class="modal-backdrop" id="authModal" hidden>
       <section class="modal auth-modal">
         <button class="modal-close" data-close="authModal">×</button>
-        <p class="eyebrow dark"><span></span> Secure access</p>
-        <h2 id="authTitle">WELCOME<br /><em>BACK.</em></h2>
-        <form id="authForm" data-mode="login">
+        <p class="eyebrow dark"><span></span> Admin access</p>
+        <h2 id="authTitle">ADMIN<br /><em>LOGIN.</em></h2>
+        <form id="authForm" data-mode="admin">
           <label id="authNameField" hidden>Full name<input name="name" placeholder="e.g. Rohan Shah" autocomplete="name" /></label>
           <label>Email address<input required name="email" type="email" placeholder="you@email.com" autocomplete="email" /></label>
           <label>Password<input required name="password" type="password" minlength="6" placeholder="Minimum 6 characters" autocomplete="current-password" /></label>
           <label id="authPhoneField" hidden>Mobile number<input name="phoneNumber" placeholder="+91 98765 43210" inputmode="tel" autocomplete="tel" /></label>
           <button class="primary-cta form-submit" id="authSubmit" type="submit">Login</button>
-          <small class="form-note"><span id="authToggleText">New here?</span> <button class="link-inline" id="authToggle" type="button">Register</button></small>
+          <small class="form-note"><span id="authToggleText">Admin access only.</span> <button class="link-inline" id="authToggle" type="button" hidden>Register</button></small>
         </form>
       </section>
     </div>
@@ -364,9 +360,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=auth-fix-2"></script>
-    <script src="message-config.js?v=auth-fix-2"></script>
-    <script src="messaging-service.js?v=auth-fix-2"></script>
-    <script src="app.js?v=auth-fix-2"></script>
+    <script src="firebase-config.js?v=guest-booking-2"></script>
+    <script src="message-config.js?v=guest-booking-2"></script>
+    <script src="messaging-service.js?v=guest-booking-2"></script>
+    <script src="app.js?v=guest-booking-2"></script>
   </body>
 </html>

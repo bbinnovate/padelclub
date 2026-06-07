@@ -5,15 +5,17 @@ window.PadelMessagingService = {
 
   buildConfirmationMessage(booking, formatCurrency, formatBookingDate) {
     return [
-      "Padel Club booking confirmation",
+      "Booking Confirmed",
+      "",
+      `Name: ${booking.name}`,
+      `Phone: ${booking.phoneNumber}`,
+      `Email: ${booking.email}`,
+      `Sport: ${booking.sportName}`,
+      `Court: ${booking.courtName || booking.facilityName}`,
+      `Date: ${booking.bookingDateLabel || formatBookingDate(booking.bookingDate)}`,
+      `Time: ${booking.timeSlot || `${booking.startTime} - ${booking.endTime}`}`,
       `Booking ID: ${booking.bookingId}`,
       `Booking Token: ${booking.bookingToken}`,
-      `Name: ${booking.name}`,
-      `Email: ${booking.email}`,
-      `Phone: ${booking.phoneNumber}`,
-      `${booking.sportName} - ${booking.facilityName}`,
-      `${formatBookingDate(booking.bookingDate)} - ${booking.startTime} to ${booking.endTime}`,
-      `Amount due: ${formatCurrency(booking.amount)}`,
     ].join("\n");
   },
 

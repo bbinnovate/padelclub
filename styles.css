@@ -17,7 +17,7 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; font-family: var(--body); color: var(--ink); background: var(--paper); }
+body { margin: 0; font-family: var(--body); font-size: 16px; color: var(--ink); background: var(--paper); }
 button, input { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
