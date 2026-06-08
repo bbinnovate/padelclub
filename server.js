@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = __dirname;
+const VIEW_ROOT = path.join(ROOT, "view");
 const PORT = Number(process.env.PORT || 8080);
 
 const MIME_TYPES = {
@@ -83,13 +84,18 @@ function serveStatic(request, response) {
     return;
   }
 
+  if (path.extname(routePath) === ".html") {
+    send(response, 404, "Not found");
+    return;
+  }
+
   const relativePath =
     routePath === "/"
-      ? "index.html"
+      ? path.join("view", "index.html")
       : routePath === "/admin"
-        ? "admin.html"
+        ? path.join("view", "admin.html")
         : routePath === "/login"
-          ? "login.html"
+          ? path.join("view", "login.html")
           : requestPath.replace(/^\/+/, "");
   const filePath = path.resolve(ROOT, relativePath);
 
@@ -101,7 +107,8 @@ function serveStatic(request, response) {
   fs.readFile(filePath, (error, content) => {
     if (error) {
       if (!path.extname(requestPath)) {
-        fs.readFile(path.join(ROOT, routePath === "/admin" ? "admin.html" : routePath === "/login" ? "login.html" : "index.html"), (indexError, indexContent) => {
+        const viewFile = routePath === "/admin" ? "admin.html" : routePath === "/login" ? "login.html" : "index.html";
+        fs.readFile(path.join(VIEW_ROOT, viewFile), (indexError, indexContent) => {
           if (indexError) {
             send(response, 404, "Not found");
             return;

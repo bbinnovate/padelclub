@@ -612,9 +612,9 @@ function showDetailsModal() {
     )
     .join("");
 
-  elements.bookingForm.elements.name.value = state.currentProfile?.name || state.currentUser?.displayName || "";
-  elements.bookingForm.elements.mobile.value = state.currentProfile?.phoneNumber || "";
-  elements.bookingForm.elements.email.value = state.currentProfile?.email || state.currentUser?.email || "";
+  elements.bookingForm.elements.name.value = "";
+  elements.bookingForm.elements.mobile.value = "";
+  elements.bookingForm.elements.email.value = "";
   elements.detailsModal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -667,11 +667,18 @@ async function createConfirmationPdfBlob(booking) {
   const target = getConfirmationCaptureElement();
   if (!target) throw new Error("Confirmation ticket is not available.");
 
-  const canvas = await html2canvas(target, {
-    backgroundColor: "#ffffff",
-    scale: Math.min(window.devicePixelRatio || 2, 3),
-    useCORS: true,
-  });
+  target.classList.add("pdf-capture");
+  let canvas;
+  try {
+    canvas = await html2canvas(target, {
+      backgroundColor: "#ffffff",
+      scale: Math.min(window.devicePixelRatio || 2, 3),
+      useCORS: true,
+      windowWidth: 900,
+    });
+  } finally {
+    target.classList.remove("pdf-capture");
+  }
   const imageData = canvas.toDataURL("image/png");
   const pdf = new window.jspdf.jsPDF({
     orientation: "portrait",
@@ -835,6 +842,7 @@ async function confirmBooking(formData, submitButton) {
       durationLabel: selection.durationLabel,
       amount: selection.price,
       players: Number(players),
+      ...makeBookingSearchFields({ bookingId, bookingToken, name }),
     };
 
     if (firebaseSdkReady) {
@@ -1121,6 +1129,7 @@ function subscribeToBookings() {
     .where("bookingDate", "<=", toFirestoreTimestamp(endDate))
     .onSnapshot(
     (snapshot) => {
+      backfillAdminSearchFields(snapshot);
       state.allBookings = snapshot.docs.map((doc) => ({
         docId: doc.id,
         ...doc.data(),
@@ -1235,9 +1244,17 @@ function resetAdminBookingPager() {
 
 function getAdminSearchField(term) {
   const value = term.trim();
-  if (/^bk/i.test(value)) return "bookingId";
-  if (/^[A-Z0-9]{4,}$/i.test(value) && !value.includes(" ")) return "bookingToken";
-  return "name";
+  if (/^bk/i.test(value)) return "bookingIdSearch";
+  if (/^(?=.*\d)[a-z0-9]{4,}$/i.test(value) && !value.includes(" ")) return "bookingTokenSearch";
+  return "nameSearch";
+}
+
+function makeBookingSearchFields({ bookingId, bookingToken, name }) {
+  return {
+    bookingIdSearch: String(bookingId || "").toLowerCase(),
+    bookingTokenSearch: String(bookingToken || "").toLowerCase(),
+    nameSearch: String(name || "").toLowerCase(),
+  };
 }
 
 function makePrefixEnd(value) {
@@ -1257,14 +1274,30 @@ function serializeAdminBooking(bookingDoc) {
   };
 }
 
+function backfillAdminSearchFields(snapshot) {
+  if (!firebaseSdkReady || state.currentProfile?.role !== "admin") return;
+  snapshot.docs.forEach((doc) => {
+    const booking = doc.data();
+    if (booking.bookingIdSearch && booking.bookingTokenSearch && booking.nameSearch) return;
+    doc.ref.update(makeBookingSearchFields(booking)).catch((error) => console.warn("Could not backfill booking search fields", error));
+  });
+}
+
 function getAdminQueryKey() {
   return state.adminBookingSearch.trim().toLowerCase();
+}
+
+function matchesAdminBookingSearch(booking, searchTerm) {
+  if (!searchTerm) return true;
+  return [booking.bookingId, booking.bookingToken, booking.name].some((value) =>
+    String(value || "").toLowerCase().includes(searchTerm),
+  );
 }
 
 function showAdminTableLoading() {
   const table = $("#adminBookingTable");
   if (!table) return;
-  table.innerHTML = `<tr><td colspan="10"><p class="empty-state">Loading bookings...</p></td></tr>`;
+  table.innerHTML = `<tr><td colspan="8"><p class="empty-state">Loading bookings...</p></td></tr>`;
 }
 
 async function getFirestoreQueryCount(query) {
@@ -1279,11 +1312,10 @@ async function getFirestoreQueryCount(query) {
 
 async function fetchAdminBookingTotal() {
   const queryKey = getAdminQueryKey();
-  const term = state.adminBookingSearch.trim();
 
   if (queryKey) {
-    const field = getAdminSearchField(term);
-    return getFirestoreQueryCount(bookingsRef.orderBy(field).startAt(term).endAt(makePrefixEnd(term)));
+    const field = getAdminSearchField(queryKey);
+    return getFirestoreQueryCount(bookingsRef.orderBy(field).startAt(queryKey).endAt(makePrefixEnd(queryKey)));
   }
 
   const todayStart = toFirestoreTimestamp(getTodayStart());
@@ -1336,9 +1368,9 @@ function renderAdminPaginationControls(totalItems) {
 }
 
 async function fetchAdminSearchPage(previousPage) {
-  const term = state.adminBookingSearch.trim();
-  const field = getAdminSearchField(term);
-  let query = bookingsRef.orderBy(field).startAt(term).endAt(makePrefixEnd(term)).limit(ADMIN_BOOKINGS_PAGE_SIZE + 1);
+  const queryKey = getAdminQueryKey();
+  const field = getAdminSearchField(queryKey);
+  let query = bookingsRef.orderBy(field).startAt(queryKey).endAt(makePrefixEnd(queryKey)).limit(ADMIN_BOOKINGS_PAGE_SIZE + 1);
   if (previousPage?.lastDoc) query = query.startAfter(previousPage.lastDoc);
 
   const snapshot = await query.get();
@@ -1552,11 +1584,7 @@ async function renderAdminDashboard() {
   const activeBookings = bookings.filter((booking) => booking.status !== "Cancelled");
   const searchTerm = state.adminBookingSearch.trim().toLowerCase();
   const filteredBookings = searchTerm
-    ? bookings.filter((booking) =>
-        [booking.bookingId, booking.bookingToken, booking.name].some((value) =>
-          String(value || "").toLowerCase().includes(searchTerm),
-        ),
-      )
+    ? bookings.filter((booking) => matchesAdminBookingSearch(booking, searchTerm))
     : bookings;
   const checkedIn = bookings.filter((booking) => booking.status === "Checked-In").length;
   const cancelled = bookings.filter((booking) => booking.status === "Cancelled").length;
@@ -1618,7 +1646,7 @@ async function renderAdminDashboard() {
       visibleBookings = visibleBookings.slice(0, expectedRowsOnPage);
     } catch (error) {
       if (requestId !== state.adminBookingRequestId) return;
-      $("#adminBookingTable").innerHTML = `<tr><td colspan="10"><p class="empty-state">${error.message || "Could not load bookings."}</p></td></tr>`;
+      $("#adminBookingTable").innerHTML = `<tr><td colspan="8"><p class="empty-state">${error.message || "Could not load bookings."}</p></td></tr>`;
       renderAdminPaginationControls(0);
       return;
     } finally {
@@ -1640,10 +1668,19 @@ async function renderAdminDashboard() {
       <tr>
         <td>${booking.bookingId}</td>
         <td>${booking.bookingToken}</td>
-        <td>${booking.sportName || "-"}</td>
-        <td>${booking.courtName || booking.facilityName || "-"}</td>
-        <td>${booking.name}</td>
-        <td>${booking.phoneNumber}</td>
+        <td>
+          <div class="table-detail-stack">
+            <strong>${booking.sportName || "-"}</strong>
+            <span>${booking.courtName || booking.facilityName || "-"}</span>
+          </div>
+        </td>
+        <td>
+          <div class="table-detail-stack">
+            <strong>${booking.name || "-"}</strong>
+            <span>${booking.phoneNumber || "-"}</span>
+            <span>${booking.email || "-"}</span>
+          </div>
+        </td>
         <td>${formatBookingDate(booking.bookingDate)}</td>
         <td>${renderStatusPill(booking.status)}</td>
         <td>${renderStatusPill(booking.paymentStatus)}</td>
@@ -1656,7 +1693,7 @@ async function renderAdminDashboard() {
     `,
         )
         .join("")
-    : `<tr><td colspan="10"><p class="empty-state">No bookings found.</p></td></tr>`;
+    : `<tr><td colspan="8"><p class="empty-state">No bookings found.</p></td></tr>`;
 
   if (firebaseSdkReady) renderAdminPaginationControls(totalItems);
   else renderAdminPagination(totalItems);

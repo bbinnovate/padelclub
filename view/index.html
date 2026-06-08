@@ -202,10 +202,10 @@
         <p class="eyebrow dark"><span></span> Almost there</p>
         <h2>WHO'S<br /><em>PLAYING?</em></h2>
         <div class="modal-summary" id="modalSummary"></div>
-        <form id="bookingForm">
-          <label>Full name<input required name="name" placeholder="e.g. Rohan Shah" autocomplete="name" /></label>
-          <label>Mobile number<input required name="mobile" placeholder="+91 98765 43210" inputmode="tel" autocomplete="tel" /></label>
-          <label>Email address<input required name="email" type="email" placeholder="you@email.com" autocomplete="email" /></label>
+        <form id="bookingForm" autocomplete="off">
+          <label>Full name<input required name="name" placeholder="e.g. Rohan Shah" autocomplete="off" /></label>
+          <label>Mobile number<input required name="mobile" placeholder="+91 98765 43210" inputmode="tel" autocomplete="off" /></label>
+          <label>Email address<input required name="email" type="email" placeholder="you@email.com" autocomplete="off" /></label>
           <fieldset><legend> </legend><div class="player-options" id="playerOptions"></div></fieldset>
           <button class="primary-cta form-submit" type="submit">Confirm booking <span>→</span></button>
           <small class="form-note">No online charge. Pay securely using the UPI QR after booking.</small>
@@ -227,7 +227,7 @@
             <div class="payment-row"><div class="qr-code" aria-label="Demo UPI QR code"></div><div><small>Amount due</small><strong id="confirmationAmount">₹2,500</strong><p>Scan to pay via any UPI app</p></div></div>
           </div>
         </div>
-        <div class="confirmation-actions"><button class="outline-button" id="downloadButton" type="button">Download confirmation</button><button class="primary-cta compact" id="whatsappButton" type="button">Open WhatsApp <span>↗</span></button></div>
+        <div class="confirmation-actions"><button class="outline-button" id="downloadButton" type="button">Download Confirmation</button><button class="primary-cta compact" id="whatsappButton" type="button">Share Confirmation<span>↗</span></button></div>
       </section>
     </div>
 

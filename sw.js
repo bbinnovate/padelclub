@@ -1,9 +1,9 @@
 const CACHE_NAME = "padel-club-v8";
 const APP_SHELL = [
   "./",
-  "./index.html",
-  "./admin.html",
-  "./login.html",
+  "./view/index.html",
+  "./view/admin.html",
+  "./view/login.html",
   "./styles.css",
   "./app.js",
   "./messaging-service.js",
@@ -27,7 +27,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request).catch(() => caches.match("./index.html")));
+    event.respondWith(fetch(event.request).catch(() => caches.match("./view/index.html")));
     return;
   }
   if (event.request.url.includes("config.js")) {
