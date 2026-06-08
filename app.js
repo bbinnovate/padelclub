@@ -39,6 +39,7 @@ const state = {
   adminBookingLoading: false,
   adminBookingRequestId: 0,
   adminBookingTotal: 0,
+  adminSearchBackfillDone: false,
 };
 const ADMIN_BOOKINGS_PAGE_SIZE = 10;
 
@@ -1108,7 +1109,7 @@ function redirectToLogin() {
   window.location.replace("/login");
 }
 
-// Firestore Live Data: admins see and manage every booking.
+// Firestore Booking Snapshot: fetch once so admin pages do not poll in the background.
 function subscribeToBookings() {
   if (!firebaseSdkReady) {
     renderAvailability();
@@ -1117,6 +1118,7 @@ function subscribeToBookings() {
 
   if (window.unsubscribeAdminBookings) {
     window.unsubscribeAdminBookings();
+    window.unsubscribeAdminBookings = null;
   }
 
   const startDate = new Date();
@@ -1124,11 +1126,11 @@ function subscribeToBookings() {
   const endDate = new Date(dates[dates.length - 1]);
   endDate.setHours(23, 59, 59, 999);
 
-  window.unsubscribeAdminBookings = bookingsRef
+  bookingsRef
     .where("bookingDate", ">=", toFirestoreTimestamp(startDate))
     .where("bookingDate", "<=", toFirestoreTimestamp(endDate))
-    .onSnapshot(
-    (snapshot) => {
+    .get()
+    .then((snapshot) => {
       backfillAdminSearchFields(snapshot);
       state.allBookings = snapshot.docs.map((doc) => ({
         docId: doc.id,
@@ -1136,15 +1138,10 @@ function subscribeToBookings() {
       }));
 
       renderAvailability();
-
-      if (state.currentProfile?.role === "admin") {
-        renderAdminDashboard();
-      }
-    },
-    (error) => {
+    })
+    .catch((error) => {
       console.error(error);
-    }
-    );
+    });
 }
 
 function showView(view) {
@@ -1267,6 +1264,20 @@ function getTodayStart() {
   return today;
 }
 
+function getCurrentBookingCutoff() {
+  return new Date();
+}
+
+function getMonthStart() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+function getMonthEnd() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
 function serializeAdminBooking(bookingDoc) {
   return {
     docId: bookingDoc.id,
@@ -1275,7 +1286,8 @@ function serializeAdminBooking(bookingDoc) {
 }
 
 function backfillAdminSearchFields(snapshot) {
-  if (!firebaseSdkReady || state.currentProfile?.role !== "admin") return;
+  if (!firebaseSdkReady || state.currentProfile?.role !== "admin" || state.adminSearchBackfillDone) return;
+  state.adminSearchBackfillDone = true;
   snapshot.docs.forEach((doc) => {
     const booking = doc.data();
     if (booking.bookingIdSearch && booking.bookingTokenSearch && booking.nameSearch) return;
@@ -1318,12 +1330,80 @@ async function fetchAdminBookingTotal() {
     return getFirestoreQueryCount(bookingsRef.orderBy(field).startAt(queryKey).endAt(makePrefixEnd(queryKey)));
   }
 
-  const todayStart = toFirestoreTimestamp(getTodayStart());
+  const cutoff = toFirestoreTimestamp(getCurrentBookingCutoff());
   const [upcomingCount, pastCount] = await Promise.all([
-    getFirestoreQueryCount(bookingsRef.where("bookingDate", ">=", todayStart).orderBy("bookingDate", "asc")),
-    getFirestoreQueryCount(bookingsRef.where("bookingDate", "<", todayStart).orderBy("bookingDate", "desc")),
+    getFirestoreQueryCount(bookingsRef.where("bookingDate", ">=", cutoff).orderBy("bookingDate", "asc")),
+    getFirestoreQueryCount(bookingsRef.where("bookingDate", "<", cutoff).orderBy("bookingDate", "desc")),
   ]);
   return upcomingCount + pastCount;
+}
+
+async function fetchAdminRevenueForRange(startDate, endDate) {
+  const snapshot = await bookingsRef
+    .where("bookingDate", ">=", toFirestoreTimestamp(startDate))
+    .where("bookingDate", "<=", toFirestoreTimestamp(endDate))
+    .get();
+
+  return snapshot.docs
+    .map((doc) => doc.data())
+    .filter((booking) => booking.status !== "Cancelled")
+    .reduce((total, booking) => total + Number(booking.amount || 0), 0);
+}
+
+async function fetchAdminMetrics(bookings) {
+  if (!firebaseSdkReady) {
+    const today = new Date();
+    const activeBookings = bookings.filter((booking) => booking.status !== "Cancelled");
+    return [
+      ["Total Bookings", bookings.length],
+      ["Checked-In Bookings", bookings.filter((booking) => booking.status === "Checked-In").length],
+      ["Cancelled Bookings", bookings.filter((booking) => booking.status === "Cancelled").length],
+      ["Paid Bookings", bookings.filter((booking) => booking.paymentStatus === "Paid").length],
+      ["Unpaid Bookings", bookings.filter((booking) => booking.paymentStatus === "Unpaid").length],
+      [
+        "Expected Revenue Today",
+        formatCurrency(
+          activeBookings
+            .filter((booking) => timestampToDate(booking.bookingDate)?.toDateString() === today.toDateString())
+            .reduce((total, booking) => total + Number(booking.amount || 0), 0),
+        ),
+      ],
+      [
+        "Expected Revenue This Month",
+        formatCurrency(
+          activeBookings
+            .filter((booking) => {
+              const bookingDate = timestampToDate(booking.bookingDate);
+              return bookingDate && bookingDate.getMonth() === today.getMonth() && bookingDate.getFullYear() === today.getFullYear();
+            })
+            .reduce((total, booking) => total + Number(booking.amount || 0), 0),
+        ),
+      ],
+    ];
+  }
+
+  const todayStart = getTodayStart();
+  const todayEnd = new Date(todayStart);
+  todayEnd.setHours(23, 59, 59, 999);
+  const [total, checkedIn, cancelled, paid, unpaid, expectedToday, expectedMonth] = await Promise.all([
+    getFirestoreQueryCount(bookingsRef),
+    getFirestoreQueryCount(bookingsRef.where("status", "==", "Checked-In")),
+    getFirestoreQueryCount(bookingsRef.where("status", "==", "Cancelled")),
+    getFirestoreQueryCount(bookingsRef.where("paymentStatus", "==", "Paid")),
+    getFirestoreQueryCount(bookingsRef.where("paymentStatus", "==", "Unpaid")),
+    fetchAdminRevenueForRange(todayStart, todayEnd),
+    fetchAdminRevenueForRange(getMonthStart(), getMonthEnd()),
+  ]);
+
+  return [
+    ["Total Bookings", total],
+    ["Checked-In Bookings", checkedIn],
+    ["Cancelled Bookings", cancelled],
+    ["Paid Bookings", paid],
+    ["Unpaid Bookings", unpaid],
+    ["Expected Revenue Today", formatCurrency(expectedToday)],
+    ["Expected Revenue This Month", formatCurrency(expectedMonth)],
+  ];
 }
 
 function renderAdminPaginationControls(totalItems) {
@@ -1362,7 +1442,7 @@ function renderAdminPaginationControls(totalItems) {
   $$("#adminBookingPagination [data-page]").forEach((button) => {
     button.addEventListener("click", async () => {
       state.adminBookingPage = Number(button.dataset.page);
-      await renderAdminDashboard();
+      await renderAdminDashboard({ showLoading: true });
     });
   });
 }
@@ -1389,11 +1469,11 @@ async function fetchAdminChronologicalPage(previousPage) {
   let pastCursor = previousPage?.pastCursor || null;
   let mode = previousPage?.mode || "upcoming";
   let hasNextPage = false;
-  const todayStart = toFirestoreTimestamp(getTodayStart());
+  const cutoff = toFirestoreTimestamp(getCurrentBookingCutoff());
 
   if (mode === "upcoming") {
     let upcomingQuery = bookingsRef
-      .where("bookingDate", ">=", todayStart)
+      .where("bookingDate", ">=", cutoff)
       .orderBy("bookingDate", "asc")
       .limit(ADMIN_BOOKINGS_PAGE_SIZE + 1);
     if (upcomingCursor) upcomingQuery = upcomingQuery.startAfter(upcomingCursor);
@@ -1412,7 +1492,7 @@ async function fetchAdminChronologicalPage(previousPage) {
   if (mode === "past" && rows.length < ADMIN_BOOKINGS_PAGE_SIZE) {
     const remaining = ADMIN_BOOKINGS_PAGE_SIZE - rows.length;
     let pastQuery = bookingsRef
-      .where("bookingDate", "<", todayStart)
+      .where("bookingDate", "<", cutoff)
       .orderBy("bookingDate", "desc")
       .limit(remaining + 1);
     if (pastCursor) pastQuery = pastQuery.startAfter(pastCursor);
@@ -1524,7 +1604,7 @@ function renderAdminPagination(totalItems) {
   $$("#adminBookingPagination [data-page]").forEach((button) => {
     button.addEventListener("click", () => {
       state.adminBookingPage = Number(button.dataset.page);
-      renderAdminDashboard();
+      renderAdminDashboard({ showLoading: true });
     });
   });
 }
@@ -1577,38 +1657,16 @@ function renderUserDashboard() {
 }
 
 // Admin Dashboard: overview cards and booking table actions backed by Firestore updates.
-async function renderAdminDashboard() {
+async function renderAdminDashboard({ showLoading = false } = {}) {
   if (!$("#adminMetrics") || !$("#adminBookingTable")) return;
   const bookings = state.allBookings;
-  const today = new Date();
-  const activeBookings = bookings.filter((booking) => booking.status !== "Cancelled");
   const searchTerm = state.adminBookingSearch.trim().toLowerCase();
   const filteredBookings = searchTerm
     ? bookings.filter((booking) => matchesAdminBookingSearch(booking, searchTerm))
     : bookings;
-  const checkedIn = bookings.filter((booking) => booking.status === "Checked-In").length;
-  const cancelled = bookings.filter((booking) => booking.status === "Cancelled").length;
-  const paid = bookings.filter((booking) => booking.paymentStatus === "Paid").length;
-  const unpaid = bookings.filter((booking) => booking.paymentStatus === "Unpaid").length;
-  const expectedToday = activeBookings
-    .filter((booking) => timestampToDate(booking.bookingDate)?.toDateString() === today.toDateString())
-    .reduce((total, booking) => total + Number(booking.amount || 0), 0);
-  const expectedMonth = activeBookings
-    .filter((booking) => {
-      const bookingDate = timestampToDate(booking.bookingDate);
-      return bookingDate && bookingDate.getMonth() === today.getMonth() && bookingDate.getFullYear() === today.getFullYear();
-    })
-    .reduce((total, booking) => total + Number(booking.amount || 0), 0);
+  const metricRows = await fetchAdminMetrics(bookings);
 
-  $("#adminMetrics").innerHTML = [
-    ["Total Bookings", bookings.length],
-    ["Checked-In Bookings", checkedIn],
-    ["Cancelled Bookings", cancelled],
-    ["Paid Bookings", paid],
-    ["Unpaid Bookings", unpaid],
-    ["Expected Revenue Today", formatCurrency(expectedToday)],
-    ["Expected Revenue This Month", formatCurrency(expectedMonth)],
-  ]
+  $("#adminMetrics").innerHTML = metricRows
     .map(
       ([label, value]) => `
       <article><div><span>${label}</span></div><strong>${value}</strong><small>Live from Firestore</small></article>
@@ -1622,7 +1680,7 @@ async function renderAdminDashboard() {
   if (firebaseSdkReady) {
     const requestId = ++state.adminBookingRequestId;
     state.adminBookingLoading = true;
-    showAdminTableLoading();
+    if (showLoading) showAdminTableLoading();
 
     try {
       const latestTotal = await fetchAdminBookingTotal();
@@ -1650,7 +1708,7 @@ async function renderAdminDashboard() {
       renderAdminPaginationControls(0);
       return;
     } finally {
-      state.adminBookingLoading = false;
+      if (requestId === state.adminBookingRequestId) state.adminBookingLoading = false;
     }
   } else {
     const sortedBookings = sortAdminBookings(filteredBookings);
@@ -1721,7 +1779,7 @@ async function updateBookingFromAdmin(docId, action, button) {
     if (firebaseSdkReady) {
       await bookingsRef.doc(docId).update(updates);
       resetAdminBookingPager();
-      await renderAdminDashboard();
+      await renderAdminDashboard({ showLoading: true });
     } else {
       state.allBookings = state.allBookings.map((booking) => (booking.bookingId === docId ? { ...booking, ...updates } : booking));
       state.userBookings = state.userBookings.map((booking) => (booking.bookingId === docId ? { ...booking, ...updates } : booking));
