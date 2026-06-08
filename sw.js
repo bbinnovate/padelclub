@@ -1,10 +1,14 @@
 const CACHE_NAME = "padel-club-v8";
 const APP_SHELL = [
   "./",
+  "./admin-layout",
   "./view/index.html",
   "./view/admin.html",
+  "./view/admin-layout.html",
+  "./view/booking.html",
   "./view/login.html",
   "./styles.css",
+  "./admin-layout-loader.js",
   "./app.js",
   "./messaging-service.js",
   "./manifest.webmanifest",

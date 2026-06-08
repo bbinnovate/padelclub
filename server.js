@@ -92,11 +92,15 @@ function serveStatic(request, response) {
   const relativePath =
     routePath === "/"
       ? path.join("view", "index.html")
+      : routePath === "/admin-layout"
+        ? path.join("view", "admin-layout.html")
       : routePath === "/admin"
         ? path.join("view", "admin.html")
-        : routePath === "/login"
-          ? path.join("view", "login.html")
-          : requestPath.replace(/^\/+/, "");
+        : routePath === "/booking"
+          ? path.join("view", "booking.html")
+          : routePath === "/login"
+            ? path.join("view", "login.html")
+            : requestPath.replace(/^\/+/, "");
   const filePath = path.resolve(ROOT, relativePath);
 
   if (!filePath.startsWith(ROOT)) {
@@ -107,7 +111,16 @@ function serveStatic(request, response) {
   fs.readFile(filePath, (error, content) => {
     if (error) {
       if (!path.extname(requestPath)) {
-        const viewFile = routePath === "/admin" ? "admin.html" : routePath === "/login" ? "login.html" : "index.html";
+        const viewFile =
+          routePath === "/admin"
+            ? "admin.html"
+            : routePath === "/admin-layout"
+              ? "admin-layout.html"
+            : routePath === "/booking"
+              ? "booking.html"
+              : routePath === "/login"
+                ? "login.html"
+                : "index.html";
         fs.readFile(path.join(VIEW_ROOT, viewFile), (indexError, indexContent) => {
           if (indexError) {
             send(response, 404, "Not found");

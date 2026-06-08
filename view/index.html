@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -20,7 +20,12 @@
   </head>
   <body data-page="home">
     <div class="noise"></div>
-    <div class="alert-region" id="alertRegion" aria-live="polite" aria-atomic="true"></div>
+    <div
+      class="alert-region"
+      id="alertRegion"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
     <header class="topbar">
       <a class="brand" href="#home" aria-label="Padel Club home">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
@@ -41,8 +46,12 @@
           <span class="mode-dot"></span>
           <span>Admin Panel</span>
         </button>
-        <button class="mode-switch" id="registerButton" type="button" hidden>Register</button>
-        <button class="mode-switch" id="logoutButton" type="button" hidden>Logout</button>
+        <button class="mode-switch" id="registerButton" type="button" hidden>
+          Register
+        </button>
+        <button class="mode-switch" id="logoutButton" type="button" hidden>
+          Logout
+        </button>
         <a class="mini-cta" href="#book">Play now <span>↗</span></a>
       </div>
     </header>
@@ -65,7 +74,9 @@
           </p>
           <div class="hero-actions">
             <a class="primary-cta" href="#book">Find a space <span>→</span></a>
-            <a class="text-cta" href="#experience">Explore the club <span>↓</span></a>
+            <a class="text-cta" href="#experience"
+              >Explore the club <span>↓</span></a
+            >
           </div>
         </div>
         <div class="hero-stat">
@@ -82,30 +93,26 @@
             <h2>BOOK YOUR<br /><em>NEXT GAME.</em></h2>
           </div>
           <div class="intro-side">
-            <p>Pick your sport, choose consecutive 30-minute slots, and lock in your space. Duration is calculated for you.</p>
-            <div class="legend">
-              <span><i class="available"></i>Available</span>
-              <span><i class="limited"></i>Limited</span>
-              <span><i class="booked"></i>Booked</span>
-            </div>
+            <p>
+              Pick your sport, choose consecutive 30-minute slots, and lock in
+              your space. Duration is calculated for you.
+            </p>
           </div>
         </div>
 
         <div class="booking-app">
-         <div class="step-strip">
-  <div class="booking-title">
-    Court Booking
-  </div>
+          <div class="step-strip">
+            <div class="booking-title">Court Booking</div>
 
-  <div class="live-indicator">
-    <i></i> Live Inventory
-  </div>
-</div>
+            <div class="live-indicator"><i></i> Live Inventory</div>
+          </div>
 
           <div class="booking-controls">
             <div class="control-label">
               <span>01</span>
-              <div><small>Choose your game</small><strong>Select a sport</strong></div>
+              <div>
+                <small>Choose your game</small><strong>Select a sport</strong>
+              </div>
             </div>
             <div class="sport-options" id="sportOptions"></div>
           </div>
@@ -114,16 +121,27 @@
             <div class="control-label">
               <span>02</span>
               <div><small>Choose a day</small><strong>Next 7 days</strong></div>
+              <div class="legend">
+                <span><i class="available"></i>Available</span>
+                <span><i class="limited"></i>Limited</span>
+                <span><i class="booked"></i>Booked</span>
+              </div>
             </div>
+
             <div class="date-scroller" id="dateScroller"></div>
           </div>
 
           <div class="court-header">
             <div>
-              <p class="eyebrow dark"><span></span> Tap consecutive slots on one space</p>
+              <p class="eyebrow dark">
+                <span></span> Tap consecutive slots on one space
+              </p>
               <h3 id="availabilityTitle">Courts available</h3>
             </div>
-            <div class="selection-rule"><strong id="maxDurationLabel">1–3 hours</strong><span>Every row is 30 minutes</span></div>
+            <div class="selection-rule">
+              <strong id="maxDurationLabel">1–3 hours</strong
+              ><span>Every row is 30 minutes</span>
+            </div>
           </div>
           <div class="slot-message" id="slotMessage" hidden></div>
           <div class="schedule-wrap">
@@ -137,13 +155,17 @@
           <p class="eyebrow"><span></span> Built for better games</p>
           <h2>MORE PLAY.<br /><em>LESS WAIT.</em></h2>
           <p>
-            Nine bookable play spaces across padel, pickleball, and turf cricket,
-            plus premium lighting, showers, and a crew that keeps every session on time.
+            Nine bookable play spaces across padel, pickleball, and turf
+            cricket, plus premium lighting, showers, and a crew that keeps every
+            session on time.
           </p>
-          <a class="primary-cta blue" href="#book">Book your session <span>→</span></a>
+          <a class="primary-cta blue" href="#book"
+            >Book your session <span>→</span></a
+          >
         </div>
         <div class="experience-card stat-card lime">
-          <span>Play spaces</span><strong>09</strong><small>Across the facility</small>
+          <span>Play spaces</span><strong>09</strong
+          ><small>Across the facility</small>
         </div>
         <div class="experience-card stat-card blue">
           <span>Open</span><strong>18H</strong><small>Every single day</small>
@@ -156,13 +178,45 @@
 
       <section class="gallery-section" id="gallery">
         <div class="gallery-heading">
-          <div><p class="eyebrow dark"><span></span> Around the facility</p><h2>SEE WHERE<br /><em>YOU'LL PLAY.</em></h2></div>
-          <p>Built for serious rallies, easy evenings, and every kind of crew.</p>
+          <div>
+            <p class="eyebrow dark"><span></span> Around the facility</p>
+            <h2>SEE WHERE<br /><em>YOU'LL PLAY.</em></h2>
+          </div>
+          <p>
+            Built for serious rallies, easy evenings, and every kind of crew.
+          </p>
         </div>
         <div class="facility-gallery">
-          <figure class="gallery-feature"><img src="/assets/gallery/padel-court.png" alt="Players competing on the blue padel court at dusk" /><figcaption><span>01</span><strong>Padel after dark</strong><small>2 panoramic courts</small></figcaption></figure>
-          <figure><img src="/assets/gallery/pickleball-courts.png" alt="Players enjoying the four pickleball courts" /><figcaption><span>02</span><strong>Pickleball social</strong><small>4 competition courts</small></figcaption></figure>
-          <figure><img src="/assets/gallery/turf-cricket.png" alt="A cricket batter playing under the turf floodlights" /><figcaption><span>03</span><strong>Turf under lights</strong><small>3 cricket grounds</small></figcaption></figure>
+          <figure class="gallery-feature">
+            <img
+              src="/assets/gallery/padel-court.png"
+              alt="Players competing on the blue padel court at dusk"
+            />
+            <figcaption>
+              <span>01</span><strong>Padel after dark</strong
+              ><small>2 panoramic courts</small>
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              src="/assets/gallery/pickleball-courts.png"
+              alt="Players enjoying the four pickleball courts"
+            />
+            <figcaption>
+              <span>02</span><strong>Pickleball social</strong
+              ><small>4 competition courts</small>
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              src="/assets/gallery/turf-cricket.png"
+              alt="A cricket batter playing under the turf floodlights"
+            />
+            <figcaption>
+              <span>03</span><strong>Turf under lights</strong
+              ><small>3 cricket grounds</small>
+            </figcaption>
+          </figure>
         </div>
       </section>
 
@@ -183,17 +237,56 @@
         <p class="eyebrow dark"><span></span> Quick answers</p>
         <h2>FIRST TIME?<br /><em>YOU'RE READY.</em></h2>
         <div class="faq-grid">
-          <details open><summary>How do I pay?</summary><p>Book your slot, then scan the UPI QR on your confirmation. The front desk updates your payment status.</p></details>
-          <details><summary>How do I choose my duration?</summary><p>Tap consecutive 30-minute slots on the same court or ground. Select at least two slots to make the one-hour minimum.</p></details>
-          <details><summary>Can I cancel or reschedule?</summary><p>Yes, up to 6 hours before your booking, subject to court availability.</p></details>
+          <details open>
+            <summary>How do I pay?</summary>
+            <p>
+              Book your slot, then scan the UPI QR on your confirmation. The
+              front desk updates your payment status.
+            </p>
+          </details>
+          <details>
+            <summary>How do I choose my duration?</summary>
+            <p>
+              Tap consecutive 30-minute slots on the same court or ground.
+              Select at least two slots to make the one-hour minimum.
+            </p>
+          </details>
+          <details>
+            <summary>Can I cancel or reschedule?</summary>
+            <p>
+              Yes, up to 6 hours before your booking, subject to court
+              availability.
+            </p>
+          </details>
         </div>
       </section>
     </main>
 
     <div class="booking-bar" id="bookingBar" hidden>
-      <div class="booking-bar-court"><span id="barCourtBadge">P1</span><div><small id="barSport">Padel</small><strong id="barCourt">Court 1</strong></div></div>
-      <div class="booking-bar-details"><div><small>Date</small><strong id="barDate">Thu, 04 Jun</strong></div><div><small>Time</small><strong id="barTime">7:00 PM – 8:00 PM</strong></div><div><small>Duration</small><strong id="barDuration">1 hour</strong></div></div>
-      <div class="booking-bar-total"><div><small>Total amount</small><strong id="barPrice">₹2,500</strong></div><button class="primary-cta compact" id="continueButton">Continue <span>→</span></button></div>
+      <div class="booking-bar-court">
+        <span id="barCourtBadge">P1</span>
+        <div>
+          <small id="barSport">Padel</small
+          ><strong id="barCourt">Court 1</strong>
+        </div>
+      </div>
+      <div class="booking-bar-details">
+        <div><small>Date</small><strong id="barDate">Thu, 04 Jun</strong></div>
+        <div>
+          <small>Time</small><strong id="barTime">7:00 PM – 8:00 PM</strong>
+        </div>
+        <div>
+          <small>Duration</small><strong id="barDuration">1 hour</strong>
+        </div>
+      </div>
+      <div class="booking-bar-total">
+        <div>
+          <small>Total amount</small><strong id="barPrice">₹2,500</strong>
+        </div>
+        <button class="primary-cta compact" id="continueButton">
+          Continue <span>→</span>
+        </button>
+      </div>
     </div>
 
     <div class="modal-backdrop" id="detailsModal" hidden>
@@ -203,12 +296,47 @@
         <h2>WHO'S<br /><em>PLAYING?</em></h2>
         <div class="modal-summary" id="modalSummary"></div>
         <form id="bookingForm" autocomplete="off">
-          <label>Full name<input required name="name" placeholder="e.g. Rohan Shah" autocomplete="off" /></label>
-          <label>Mobile number<input required name="mobile" placeholder="+91 98765 43210" inputmode="tel" autocomplete="off" /></label>
-          <label>Email address<input required name="email" type="email" placeholder="you@email.com" autocomplete="off" /></label>
-          <fieldset><legend> </legend><div class="player-options" id="playerOptions"></div></fieldset>
-          <button class="primary-cta form-submit" type="submit">Confirm booking <span>→</span></button>
-          <small class="form-note">No online charge. Pay securely using the UPI QR after booking.</small>
+          <label class="mobile-field"
+            >Mobile number
+            <div class="phone-input">
+              <span class="phone-prefix">+91</span>
+              <input
+                required
+                name="mobile"
+                placeholder="Enter mobile number"
+                inputmode="numeric"
+                pattern="[0-9]{10}"
+                maxlength="10"
+                autocomplete="off"
+              />
+            </div>
+            <small class="lookup-status" id="customerLookupStatus" aria-live="polite"></small>
+          </label>
+          <label
+            >Full name<input
+              required
+              name="name"
+              placeholder="e.g. Rohan Shah"
+              autocomplete="off"
+          /></label>
+          <label
+            >Email address<input
+              name="email"
+              type="email"
+              placeholder="you@email.com"
+              autocomplete="off"
+          /></label>
+          <fieldset>
+            <legend></legend>
+            <div class="player-options" id="playerOptions"></div>
+          </fieldset>
+          <button class="primary-cta form-submit" type="submit">
+            Confirm booking <span>→</span>
+          </button>
+          <small class="form-note"
+            >No online charge. Pay securely using the UPI QR after
+            booking.</small
+          >
         </form>
       </section>
     </div>
@@ -218,21 +346,55 @@
         <button class="modal-close" data-close="confirmationModal">×</button>
         <div id="confirmationPdfContent">
           <div class="success-mark">✓</div>
-          <p class="eyebrow dark centered"><span></span> Play space locked in <span></span></p>
+          <p class="eyebrow dark centered">
+            <span></span> Play space locked in <span></span>
+          </p>
           <h2>GAME<em>ON.</em></h2>
-          <p class="confirmation-sub">Your booking is confirmed. Complete payment using the QR before you arrive.</p>
+          <p class="confirmation-sub">
+            Your booking is confirmed. Complete payment using the QR before you
+            arrive.
+          </p>
           <div class="ticket">
-            <div class="ticket-top"><div><small>Booking ID</small><strong id="confirmationId">BK-2026-000127</strong></div><div><small>Verification code</small><strong class="code" id="verificationCode">PDL8X4</strong></div></div>
+            <div class="ticket-top">
+              <div>
+                <small>Booking ID</small
+                ><strong id="confirmationId">BK-2026-000127</strong>
+              </div>
+              <div>
+                <small>Verification code</small
+                ><strong class="code" id="verificationCode">PDL8X4</strong>
+              </div>
+            </div>
             <div class="ticket-main" id="confirmationDetails"></div>
-            <div class="payment-row"><div class="qr-code" aria-label="Demo UPI QR code"></div><div><small>Amount due</small><strong id="confirmationAmount">₹2,500</strong><p>Scan to pay via any UPI app</p></div></div>
+            <div class="payment-row">
+              <div class="qr-code" aria-label="Demo UPI QR code"></div>
+              <div>
+                <small>Amount due</small
+                ><strong id="confirmationAmount">₹2,500</strong>
+                <p>Scan to pay via any UPI app</p>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="confirmation-actions"><button class="outline-button" id="downloadButton" type="button">Download Confirmation</button><button class="primary-cta compact" id="whatsappButton" type="button">Share Confirmation<span>↗</span></button></div>
+        <div class="confirmation-actions">
+          <button class="outline-button" id="downloadButton" type="button">
+            Download Confirmation</button
+          ><button
+            class="primary-cta compact"
+            id="whatsappButton"
+            type="button"
+          >
+            Share Confirmation<span>↗</span>
+          </button>
+        </div>
       </section>
     </div>
 
     <footer>
-      <a class="brand" href="#home"><span class="brand-mark"><i></i><i></i></span><span>PADEL<span>CLUB</span></span></a>
+      <a class="brand" href="#home"
+        ><span class="brand-mark"><i></i><i></i></span
+        ><span>PADEL<span>CLUB</span></span></a
+      >
       <p>Play hard. Book easy.</p>
       <span>© 2026 Padel Club</span>
     </footer>

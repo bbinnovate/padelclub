@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0b0f18" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="description" content="Multi-sport court and turf booking platform." />
-    <title>Padel Club Admin | Padel Club</title>
+    <title>Booking Overview | Padel Club</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,8 +15,17 @@
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body data-page="admin" data-admin-active="overview">
+  <body data-page="admin" data-admin-active="booking">
     <template id="adminPageContent">
+      <button
+        class="state-toggle-button"
+        id="bookingStateToggle"
+        type="button"
+        aria-controls="adminMetrics"
+        aria-expanded="false"
+      >
+        Show State
+      </button>
       <div class="metric-grid admin-metric-grid" id="adminMetrics">
         <article><div><span>Total Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
         <article><div><span>Checked-In Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
@@ -27,39 +36,29 @@
         <article><div><span>Expected Revenue This Month</span></div><strong>...</strong><small>Excludes cancelled</small></article>
       </div>
 
-      <article class="booking-table-panel">
-        <div class="panel-heading booking-header-row">
-          <h2>All Bookings - Manage Statuses and Payments</h2>
-          <div class="booking-search-row">
-            <input
-              id="adminBookingSearch"
-              class="booking-search-input"
-              type="search"
-              placeholder="Search by Booking ID, Token, or Customer Name"
-              autocomplete="off"
-            />
+      <article class="admin-court-panel">
+        <div class="panel-heading admin-court-heading">
+          <div class="admin-court-title-row">
+            <div><small>Court Booking</small><h2 id="adminCourtBookingTitle">Court Booking</h2></div>
+            <div class="admin-date-range-filter">
+              <label><span>From</span><input id="adminCourtStartDate" type="date" /></label>
+              <label><span>To</span><input id="adminCourtEndDate" type="date" /></label>
+            </div>
+          </div>
+          <div class="admin-court-filters">
+            <div class="sport-options admin-sport-options" id="adminCourtSportOptions"></div>
+            <div class="date-scroller admin-date-scroller" id="adminCourtDateScroller"></div>
           </div>
         </div>
-        <div class="table-scroll">
-          <table class="booking-table">
-            <thead>
-              <tr>
-                <th>Booking ID</th>
-                <th>Booking Token</th>
-                <th>Facility Details</th>
-                <th>Personal Details</th>
-                <th>Booking Date</th>
-                <th>Status</th>
-                <th>Payment Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="adminBookingTable">
-              <tr><td colspan="8"><p class="empty-state">Loading bookings...</p></td></tr>
-            </tbody>
-          </table>
+        <!-- <div class="admin-court-legend">
+          <span><i class="paid"></i>Paid</span>
+          <span><i class="checkedin"></i>Checked-In</span>
+          <span><i class="cancelled"></i>Cancelled</span>
+          <span><i class="unpaid"></i>Unpaid</span>
+        </div> -->
+        <div class="schedule-wrap admin-court-wrap" style="margin-top: 1em;">
+          <div class="availability-grid admin-court-booking-grid" id="adminCourtBookingGrid"></div>
         </div>
-        <div class="table-pagination" id="adminBookingPagination" hidden></div>
       </article>
 
       <div class="admin-grid legacy-admin-grid">
