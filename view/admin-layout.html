@@ -20,23 +20,31 @@
       <span class="mode-dot"></span>
       <span>Admin Panel</span>
     </button>
-    <button class="mode-switch" id="registerButton" type="button" hidden>Register</button>
-    <button class="mode-switch" id="logoutButton" type="button" hidden>Logout</button>
+    <!-- <button class="mode-switch" id="registerButton" type="button" hidden>Register</button>
+    <button class="mode-switch" id="logoutButton" type="button" hidden>Logout</button> -->
+    <button class="admin-menu-button admin-header-menu-button" id="adminHeaderMenuButton" type="button" aria-controls="adminSidebar" aria-expanded="false">☰</button>
     <a class="mini-cta" href="/">Play now <span>↗</span></a>
   </div>
 </header>
 
 <main id="adminView" class="admin-shell" hidden>
-  <aside class="admin-sidebar">
+  <div class="admin-sidebar-backdrop" id="adminSidebarBackdrop" hidden></div>
+  <aside class="admin-sidebar" id="adminSidebar">
     <a class="brand admin-brand" href="#"><span class="brand-mark"><i></i><i></i></span><span>PADEL<span>CLUB</span></span></a>
     <nav>
       <a href="/admin" data-admin-nav="overview"><span>⌁</span>Overview</a>
       <a href="/booking" data-admin-nav="booking"><span>▦</span>Booking</a>
     </nav>
+    <div class="sidebar-bottom">
+      <button class="admin-sidebar-logout" id="adminSidebarLogout" type="button"><span>↪</span>Logout</button>
+    </div>
   </aside>
   <section class="admin-content">
     <div class="admin-topbar">
-      <div><small id="adminCurrentDate">Today</small><h1 id="adminGreeting">Good day.</h1></div>
+      <div class="admin-topbar-title">
+        <!-- <button class="admin-menu-button" id="adminMenuButton" type="button" aria-controls="adminSidebar" aria-expanded="false">☰</button> -->
+        <div><small id="adminCurrentDate">Today</small><h1 id="adminGreeting">Good day.</h1></div>
+      </div>
       <div class="admin-actions"><button class="primary-cta compact" id="newBookingButton">+ New booking</button></div>
     </div>
 

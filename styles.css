@@ -1425,6 +1425,26 @@ fieldset {
   display: grid;
   gap: 12px;
 }
+.admin-sidebar-logout {
+  height: 44px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #2b3441;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--white);
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+.admin-sidebar-logout span {
+  width: 17px;
+  text-align: center;
+  color: var(--lime);
+}
 .club-status {
   padding: 12px;
   display: flex;
@@ -1496,6 +1516,36 @@ fieldset {
   justify-content: space-between;
   align-items: center;
   gap: 20px;
+}
+.admin-topbar-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.admin-menu-button {
+  width: 38px;
+  height: 38px;
+  display: none;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 900;
+}
+.admin-header-menu-button {
+  flex: 0 0 38px;
+}
+.admin-topbar-title > .admin-menu-button {
+  display: none;
+}
+.admin-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 79;
+  background: rgba(5, 8, 13, 0.55);
 }
 .admin-topbar small,
 .panel-heading small {
@@ -2014,15 +2064,35 @@ footer > span {
   .confirmation-actions {
     grid-template-columns: 1fr;
   }
-  .admin-sidebar {
+  .admin-header-menu-button {
+    display: grid;
+  }
+  .admin-topbar-title > .admin-menu-button {
     display: none;
+  }
+  body[data-page="admin"] #logoutButton {
+    display: none;
+  }
+  .admin-sidebar {
+    width: min(280px, 82vw);
+    display: flex;
+    z-index: 80;
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+    box-shadow: 18px 0 45px rgba(5, 8, 13, 0.28);
+  }
+  .admin-sidebar-open .admin-sidebar {
+    transform: translateX(0);
+  }
+  .admin-sidebar .admin-brand {
+    margin-bottom: 28px;
   }
   .admin-content {
     margin-left: 0;
     padding: 20px 12px 40px;
   }
   .admin-topbar {
-    align-items: flex-start;
+    align-items: center;
   }
   .admin-actions .outline-button,
   .admin-actions .icon-button {

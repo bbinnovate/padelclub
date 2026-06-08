@@ -2393,6 +2393,25 @@ function protectAdminRoute() {
   return true;
 }
 
+function setAdminSidebarOpen(open) {
+  document.body.classList.toggle("admin-sidebar-open", open);
+  const menuButtons = [$("#adminMenuButton"), $("#adminHeaderMenuButton")].filter(Boolean);
+  const backdrop = $("#adminSidebarBackdrop");
+  menuButtons.forEach((button) => button.setAttribute("aria-expanded", String(open)));
+  if (backdrop) backdrop.hidden = !open;
+}
+
+async function logoutCurrentUser() {
+  if (firebaseSdkReady) await auth.signOut();
+  state.currentUser = null;
+  state.currentProfile = null;
+  state.userBookings = [];
+  setAdminSidebarOpen(false);
+  updateAuthUI();
+  navigateToHome(true);
+  showAlert("Logged out.");
+}
+
 function bindEvents() {
   elements.adminBookingModal = $("#adminBookingModal");
   prepareAuthForm();
@@ -2415,15 +2434,12 @@ function bindEvents() {
     event.currentTarget.textContent = isOpen ? "Hide" : "Show State";
     event.currentTarget.setAttribute("aria-expanded", String(isOpen));
   });
-  $("#logoutButton")?.addEventListener("click", async () => {
-    if (firebaseSdkReady) await auth.signOut();
-    state.currentUser = null;
-    state.currentProfile = null;
-    state.userBookings = [];
-    updateAuthUI();
-    navigateToHome(true);
-    showAlert("Logged out.");
-  });
+  $("#adminMenuButton")?.addEventListener("click", () => setAdminSidebarOpen(!document.body.classList.contains("admin-sidebar-open")));
+  $("#adminHeaderMenuButton")?.addEventListener("click", () => setAdminSidebarOpen(!document.body.classList.contains("admin-sidebar-open")));
+  $("#adminSidebarBackdrop")?.addEventListener("click", () => setAdminSidebarOpen(false));
+  $$("#adminSidebar [data-admin-nav]").forEach((link) => link.addEventListener("click", () => setAdminSidebarOpen(false)));
+  $("#logoutButton")?.addEventListener("click", logoutCurrentUser);
+  $("#adminSidebarLogout")?.addEventListener("click", logoutCurrentUser);
   elements.authForm?.addEventListener("submit", handleAuthSubmit);
   $$(".modal-close, [data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal($(`#${button.dataset.close}`)));
