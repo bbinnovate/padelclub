@@ -29,6 +29,14 @@
       "destination": "/view/booking.html"
     },
     {
+      "source": "/booking-confirm",
+      "destination": "/view/booking-confirm.html"
+    },
+    {
+      "source": "/booking-confirm/",
+      "destination": "/view/booking-confirm.html"
+    },
+    {
       "source": "/login",
       "destination": "/view/login.html"
     },

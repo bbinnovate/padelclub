@@ -757,7 +757,7 @@ function renderAvailability() {
   const selectedDate = dates[state.selectedDate];
   const facilities = getFacilities();
   $("#availabilityTitle").textContent = `${sport.name} - ${selectedDate.toLocaleDateString("en-IN", {
-    weekday: "long",
+    weekday: "short",
     day: "2-digit",
     month: "short",
   })}`;
@@ -786,7 +786,7 @@ function renderAvailability() {
           const edgeStart = selected && slotIndex === Math.min(...state.selectedSlots);
           const edgeEnd = selected && slotIndex === Math.max(...state.selectedSlots);
           return `<button
-            class="slot-cell ${unavailable ? "unavailable" : ""} ${selected ? "selected" : ""} ${edgeStart ? "edge-start" : ""} ${edgeEnd ? "edge-end" : ""}"
+            class="slot-cell ${unavailable ? "unavailable" : "available"} ${selected ? "selected" : ""} ${edgeStart ? "edge-start" : ""} ${edgeEnd ? "edge-end" : ""}"
             ${unavailable ? "disabled" : ""}
             data-facility="${facility.id}"
             data-slot="${slotIndex}"
@@ -1154,7 +1154,7 @@ function renderAdminCourtBooking() {
             return "";
           }
 
-          return `<button class="admin-booking-slot ${className} ${merge.isStart ? "merged-start" : ""}" data-admin-booking-id="${booking ? getAdminBookingId(booking) : ""}" style="grid-column: ${facilityIndex + 2}; grid-row: ${slotIndex + 2} / span ${merge.span};" type="button" ${booking ? "" : "disabled"}>
+          return `<button class="admin-booking-slot ${booking ? className : "available"} ${merge.isStart ? "merged-start" : ""}" data-admin-booking-id="${booking ? getAdminBookingId(booking) : ""}" style="grid-column: ${facilityIndex + 2}; grid-row: ${slotIndex + 2} / span ${merge.span};" type="button" ${booking ? "" : "disabled"}>
             ${
               booking
                 ? `<div class="admin-booking-slot-content"><span>${booking.name || "Guest"}</span><span>${booking.phoneNumber || "-"}</span><small>${booking.paymentStatus || "-"}</small></div>`
@@ -1286,11 +1286,11 @@ function showDetailsModal() {
   </div>
   <div>
     <small>Date</small>
-    <strong>${selection.date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</strong>
+    <strong>${selection.date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</strong>
   </div>
   <div>
     <small>Time</small>
-    <strong class="modal-summary-time">${selection.startTime} to ${selection.endTime}</strong>
+    <strong class="modal-summary-time">${selection.startTime} - ${selection.endTime}</strong>
   </div>
   <div>
     <small>Amount</small>

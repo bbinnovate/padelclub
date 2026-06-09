@@ -92,7 +92,7 @@
             <p class="eyebrow dark"><span></span> Live availability</p>
             <h2>BOOK YOUR<br /><em>NEXT GAME.</em></h2>
           </div>
-          <div class="intro-side">
+          <div class="intro-side mobile-none">
             <p>
               Pick your sport, choose consecutive 30-minute slots, and lock in
               your space. Duration is calculated for you.
@@ -111,7 +111,8 @@
             <div class="control-label">
               <span>01</span>
               <div>
-                <small>Choose your game</small><strong>Select a sport</strong>
+                <small class="mobile-none">Choose your game</small>
+                <strong>Select a sport</strong>
               </div>
             </div>
             <div class="sport-options" id="sportOptions"></div>
@@ -120,7 +121,7 @@
           <div class="booking-controls">
             <div class="control-label">
               <span>02</span>
-              <div><small>Choose a day</small><strong>Next 7 days</strong></div>
+              <div><small class="mobile-none">Choose a day</small><strong>Next 7 days</strong></div>
               <div class="legend">
                 <span><i class="available"></i>Available</span>
                 <span><i class="limited"></i>Limited</span>
@@ -133,12 +134,12 @@
 
           <div class="court-header">
             <div>
-              <p class="eyebrow dark">
+              <p class="eyebrow mobile-none dark">
                 <span></span> Tap consecutive slots on one space
               </p>
               <h3 id="availabilityTitle">Courts available</h3>
             </div>
-            <div class="selection-rule">
+            <div class="selection-rule mobile-none">
               <strong id="maxDurationLabel">1–3 hours</strong
               ><span>Every row is 30 minutes</span>
             </div>
@@ -329,7 +330,7 @@
               autocomplete="off"
           /></label>
           <label
-            >Email address<input
+            >Email address (optional)<input
               name="email"
               type="email"
               placeholder="you@email.com"
@@ -405,7 +406,10 @@
             id="whatsappButton"
             type="button"
           >
-            Share Confirmation<span>↗</span>
+            Share on WhatsApp
+            <svg class="whatsapp-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19.1 4.9A9.8 9.8 0 0 0 3 15.4L2 22l6.8-1a9.8 9.8 0 0 0 4.7 1.2h.1a9.8 9.8 0 0 0 5.5-17.3Zm-5.5 15.6h-.1a8.1 8.1 0 0 1-4.1-1.1l-.3-.2-4 .6.6-3.9-.2-.4a8.1 8.1 0 1 1 8.1 5Zm4.4-6.1c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.6.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1-.2-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.1-.2 0-.4.1-.5l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5s-.6-1.5-.8-2c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.2-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9.6.3 1.1.4 1.5.5.6.2 1.2.2 1.6.1.5-.1 1.4-.6 1.6-1.1.2-.5.2-1 .2-1.1-.1-.2-.2-.2-.4-.3Z" />
+            </svg>
           </button>
         </div>
       </section>
