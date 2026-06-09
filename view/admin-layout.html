@@ -20,8 +20,6 @@
       <span class="mode-dot"></span>
       <span>Admin Panel</span>
     </button>
-    <!-- <button class="mode-switch" id="registerButton" type="button" hidden>Register</button>
-    <button class="mode-switch" id="logoutButton" type="button" hidden>Logout</button> -->
     <button class="admin-menu-button admin-header-menu-button" id="adminHeaderMenuButton" type="button" aria-controls="adminSidebar" aria-expanded="false">☰</button>
     <a class="mini-cta" href="/">Play now <span>↗</span></a>
   </div>
@@ -42,15 +40,9 @@
   <section class="admin-content">
     <div class="admin-topbar">
       <div class="admin-topbar-title">
-        <!-- <button class="admin-menu-button" id="adminMenuButton" type="button" aria-controls="adminSidebar" aria-expanded="false">☰</button> -->
         <div><small id="adminCurrentDate">Today</small><h1 id="adminGreeting">Good day.</h1></div>
       </div>
       <div class="admin-actions"><button class="primary-cta compact" id="newBookingButton">+ New booking</button></div>
-    </div>
-
-    <div class="pulse-banner">
-      <div><span class="pulse-icon">↗</span><p><small>Today at a glance</small><strong>Your multi-sport facility is running at 74% occupancy.</strong></p></div>
-      <span>22 sessions still to play</span>
     </div>
 
     <div id="adminPageSlot"></div>
@@ -59,11 +51,20 @@
 
 <div class="modal-backdrop" id="adminBookingModal" hidden>
   <section class="modal admin-booking-modal">
-    <button class="modal-close" data-close="adminBookingModal" type="button">×</button>
+    <button class="modal-close" data-close="adminBookingModal" type="button">&times;</button>
     <p class="eyebrow dark"><span></span> Booking details</p>
     <h2>BOOKING<em>INFO.</em></h2>
     <div class="admin-booking-ticket-top" id="adminBookingModalTop"></div>
     <div class="modal-summary admin-booking-summary" id="adminBookingModalSummary"></div>
     <div class="admin-booking-modal-actions" id="adminBookingModalActions"></div>
+  </section>
+</div>
+
+<div class="modal-backdrop limit-modal-backdrop" id="adminUpdateModal" hidden>
+  <section class="modal limit-modal admin-update-modal">
+    <button class="modal-close" data-close="adminUpdateModal" type="button">&times;</button>
+    <p class="eyebrow dark centered"><span></span> Booking status <span></span></p>
+    <h2>UPDATED<em>.</em></h2>
+    <p id="adminUpdateMessage">Booking updated.</p>
   </section>
 </div>

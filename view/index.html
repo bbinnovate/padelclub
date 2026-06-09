@@ -309,8 +309,17 @@
                 maxlength="10"
                 autocomplete="off"
               />
+              <span
+                class="lookup-indicator"
+                id="customerLookupIndicator"
+                aria-hidden="true"
+              ></span>
             </div>
-            <small class="lookup-status" id="customerLookupStatus" aria-live="polite"></small>
+            <small
+              class="lookup-status"
+              id="customerLookupStatus"
+              aria-live="polite"
+            ></small>
           </label>
           <label
             >Full name<input
@@ -333,11 +342,17 @@
           <button class="primary-cta form-submit" type="submit">
             Confirm booking <span>→</span>
           </button>
-          <small class="form-note"
-            >No online charge. Pay securely using the UPI QR after
-            booking.</small
-          >
+          <small class="form-note">Book Now. Pay when you Play</small>
         </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop limit-modal-backdrop" id="bookingLimitModal" hidden>
+      <section class="modal limit-modal">
+        <button class="modal-close" data-close="bookingLimitModal">×</button>
+        <p class="eyebrow dark centered"><span></span> Booking limit <span></span></p>
+        <h2>LIMIT<em>REACHED.</em></h2>
+        <p id="bookingLimitMessage"></p>
       </section>
     </div>
 
@@ -351,27 +366,33 @@
           </p>
           <h2>GAME<em>ON.</em></h2>
           <p class="confirmation-sub">
-            Your booking is confirmed. Complete payment using the QR before you
-            arrive.
+            Your booking is confirmed. Pay when you Play.
           </p>
           <div class="ticket">
-            <div class="ticket-top">
+            <div class="admin-booking-ticket-top">
               <div>
                 <small>Booking ID</small
                 ><strong id="confirmationId">BK-2026-000127</strong>
               </div>
               <div>
-                <small>Verification code</small
+                <small>Unique code</small
                 ><strong class="code" id="verificationCode">PDL8X4</strong>
               </div>
             </div>
-            <div class="ticket-main" id="confirmationDetails"></div>
+            <div
+              class="modal-summary admin-booking-summary"
+              id="confirmationDetails"
+            ></div>
             <div class="payment-row">
-              <div class="qr-code" aria-label="Demo UPI QR code"></div>
+              <img
+                class="money-icon"
+                src="/assets/money-icon.svg"
+                alt="Money"
+              />
               <div>
-                <small>Amount due</small
+                <small id="confirmationAmountStatus">Amount due</small
                 ><strong id="confirmationAmount">₹2,500</strong>
-                <p>Scan to pay via any UPI app</p>
+                <p>Pay when you Play.</p>
               </div>
             </div>
           </div>

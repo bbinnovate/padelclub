@@ -56,6 +56,9 @@ function sendRuntimeConfig(response) {
     whatsAppEndpoint: env.WHATSAPP_CONFIRMATION_ENDPOINT || "",
     senderNumber: env.MESSAGE_SENDER_NUMBER || "",
   };
+  const publicConfig = {
+    baseUrl: (env.PUBLIC_BASE_URL || env.CONFIRMATION_BASE_URL || "").replace(/\/+$/, ""),
+  };
 
   send(
     response,
@@ -63,6 +66,7 @@ function sendRuntimeConfig(response) {
     [
       `window.PADEL_FIREBASE_CONFIG = ${JSON.stringify(firebaseConfig)};`,
       `window.PADEL_MESSAGE_CONFIG = ${JSON.stringify(messageConfig)};`,
+      `window.PADEL_PUBLIC_CONFIG = ${JSON.stringify(publicConfig)};`,
     ].join("\n"),
     "application/javascript; charset=utf-8",
     { "Cache-Control": "no-store" },
@@ -98,6 +102,8 @@ function serveStatic(request, response) {
         ? path.join("view", "admin.html")
         : routePath === "/booking"
           ? path.join("view", "booking.html")
+          : routePath === "/booking-confirm"
+            ? path.join("view", "booking-confirm.html")
           : routePath === "/login"
             ? path.join("view", "login.html")
             : requestPath.replace(/^\/+/, "");
@@ -118,6 +124,8 @@ function serveStatic(request, response) {
               ? "admin-layout.html"
             : routePath === "/booking"
               ? "booking.html"
+              : routePath === "/booking-confirm"
+                ? "booking-confirm.html"
               : routePath === "/login"
                 ? "login.html"
                 : "index.html";

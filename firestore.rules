@@ -63,6 +63,7 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasAll([
           "bookingId",
           "bookingToken",
+          "confirmationToken",
           "customerId",
           "name",
           "email",
@@ -78,7 +79,8 @@ service cloud.firestore {
         && request.resource.data.bookingId == bookingId
         && request.resource.data.status == "Pending"
         && request.resource.data.paymentStatus == "Unpaid";
-      allow read: if isAdmin();
+      allow get: if isAdmin() || resource.data.status != "Cancelled";
+      allow list: if isAdmin() || request.query.limit <= 1000;
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(["status", "paymentStatus"]);

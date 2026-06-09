@@ -408,7 +408,7 @@ h2 em {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 40px;
+  gap: 10px;
 }
 .section-intro h2,
 .faq-section h2 {
@@ -588,7 +588,7 @@ h2 em {
   position: relative;
   min-width: 78px;
   height: 82px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line) !important;
   border-radius: 7px;
   background: var(--white);
   color: var(--ink);
@@ -980,7 +980,7 @@ h2 em {
   min-width: 150px;
 }
 .booking-bar-court > span {
-  width: 42px;
+  width: 50px;
   height: 42px;
   display: grid;
   place-items: center;
@@ -988,7 +988,7 @@ h2 em {
   background: var(--lime);
   color: var(--ink);
   font-family: var(--display);
-  font-size: 12px;
+  font-size: 14px;
 }
 .booking-bar small {
   color: #8992a0;
@@ -1035,7 +1035,7 @@ h2 em {
 }
 .modal {
   position: relative;
-  width: min(560px, 100%);
+  width: min(780px, 100%);
   max-height: calc(100vh - 40px);
   overflow-y: auto;
   border-radius: 14px;
@@ -1056,10 +1056,13 @@ h2 em {
   top: 15px;
   width: 33px;
   height: 33px;
+  display: grid;
+  place-items: center;
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--white);
   font-size: 21px;
+  line-height: 1;
 }
 .modal h2 {
   font-size: 52px;
@@ -1068,18 +1071,88 @@ h2 em {
 .modal h2 em {
   color: var(--blue);
 }
+.limit-modal-backdrop {
+  z-index: 95;
+  background: rgba(4, 7, 12, 0.36);
+}
+.limit-modal {
+  width: min(430px, 100%);
+  padding: 34px 28px;
+  text-align: center;
+}
+.limit-modal h2 {
+  font-size: 42px;
+}
+.limit-modal h2 em {
+  color: #b52838;
+}
+.limit-modal p:last-child {
+  margin: 16px 0 0;
+  color: #9f1d2c;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+.admin-update-modal h2 em {
+  color: var(--blue);
+}
+.admin-update-modal p:last-child {
+  color: #477d00;
+}
+.app-message-backdrop {
+  z-index: 110;
+  background: rgba(4, 7, 12, 0.42);
+}
+.app-message-modal h2 em {
+  color: var(--blue);
+}
+.app-message-modal p:last-child {
+  color: #477d00;
+}
+.app-message-backdrop.error .app-message-modal h2 em,
+.app-message-backdrop.error .app-message-modal p:last-child {
+  color: #b52838;
+}
+.app-message-backdrop.info .app-message-modal h2 em,
+.app-message-backdrop.info .app-message-modal p:last-child {
+  color: var(--blue);
+}
 .modal-summary {
   margin: 24px 0;
-  padding: 16px;
+  padding: 14px 10px;
   border-radius: 8px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
   background: #f1f3ed;
 }
 .modal-summary div {
+  position: relative;
   display: grid;
-  gap: 3px;
+  justify-items: center;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  text-align: center;
+}
+.modal-summary div + div::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: rgba(11, 16, 28, 0.12);
+}
+.modal-summary-court strong {
+  width: 44px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--lime);
+  color: var(--ink);
+  font-family: var(--display);
 }
 .modal-summary small,
 .ticket small {
@@ -1090,6 +1163,11 @@ h2 em {
 }
 .modal-summary strong {
   font-size: 12px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.modal-summary-time {
+  max-width: 62px;
 }
 #modalSummary {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1117,6 +1195,7 @@ fieldset {
 }
 .phone-input {
   height: 47px;
+  position: relative;
   display: flex;
   align-items: center;
   border: 1px solid var(--line);
@@ -1139,9 +1218,53 @@ fieldset {
   flex: 1;
   border: 0;
   border-radius: 0;
+  padding-right: 38px;
+}
+.lookup-indicator {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  display: none;
+  transform: translateY(-50%);
+}
+.lookup-indicator.loading,
+.lookup-indicator.success {
+  display: block;
+}
+.lookup-indicator.loading {
+  border: 2px solid rgba(49, 87, 255, 0.18);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: lookupSpin 0.75s linear infinite;
+}
+.lookup-indicator.success::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #6ee600;
+}
+.lookup-indicator.success::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+@keyframes lookupSpin {
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
 }
 .lookup-status {
-  min-height: 13px;
+  display: none;
+  min-height: 0;
   color: var(--muted);
   font-size: 10px;
   font-weight: 800;
@@ -1171,6 +1294,12 @@ fieldset {
 .modal input:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(49, 87, 255, 0.1);
+}
+.modal .phone-input input {
+  height: 100%;
+  border: 0;
+  box-shadow: none;
+  padding-right: 38px;
 }
 fieldset {
   border: 0;
@@ -1209,11 +1338,27 @@ fieldset {
 .form-note {
   text-align: center;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .confirmation-modal {
-  width: min(600px, 100%);
+  /* width: min(600px, 100%); */
   text-align: center;
+}
+.public-confirm-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.public-confirm-card {
+  width: min(600px, 100%);
+}
+@media (min-width: 761px) {
+  .confirmation-modal,
+  .public-confirm-card {
+    max-height: none;
+    overflow: visible;
+  }
 }
 #confirmationPdfContent {
   padding: 2px;
@@ -1229,6 +1374,10 @@ fieldset {
   background: var(--lime);
   font-weight: 900;
 }
+.success-mark.expired {
+  background: #fff0f1;
+  color: #b52838;
+}
 .eyebrow.centered {
   justify-content: center;
   margin-bottom: 10px;
@@ -1242,9 +1391,13 @@ fieldset {
 }
 .ticket {
   text-align: left;
-  border: 1px solid var(--line);
   border-radius: 10px;
-  overflow: hidden;
+}
+.ticket .admin-booking-ticket-top {
+  margin-top: 0;
+}
+.ticket .admin-booking-summary {
+  margin-bottom: 0;
 }
 .ticket-top {
   padding: 16px 18px;
@@ -1295,17 +1448,32 @@ fieldset {
 }
 .payment-row > div:last-child {
   display: grid;
-  gap: 3px;
+  gap: 5px;
+}
+.payment-row small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
 }
 .payment-row strong {
   font-family: var(--display);
-  font-size: 27px;
+  font-size: 34px;
   letter-spacing: -1px;
 }
 .payment-row p {
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.money-icon {
+  width: 76px;
+  height: 76px;
+  flex: 0 0 auto;
+  display: block;
 }
 .qr-code {
   width: 76px;
@@ -1352,8 +1520,8 @@ fieldset {
   max-width: none;
 }
 
-#confirmationPdfContent.pdf-capture .ticket-main {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+#confirmationPdfContent.pdf-capture .admin-booking-summary {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .admin-shell {
@@ -1877,6 +2045,7 @@ footer > span {
     min-height: calc(100svh - 66px);
     padding: 90px 20px 80px;
     justify-content: flex-end;
+    display: none;
   }
   .hero h1 {
     font-size: clamp(54px, 16vw, 78px);
@@ -1899,7 +2068,7 @@ footer > span {
     text-align: center;
   }
   .booking-section {
-    padding: 70px 12px;
+    padding: 35px 12px 70px;
   }
   .section-intro {
     align-items: flex-start;
@@ -1989,8 +2158,7 @@ footer > span {
     min-width: auto;
   }
   .booking-bar-court div,
-  .booking-bar-details,
-  .booking-bar-total > div {
+  .booking-bar-details > div {
     display: none;
   }
   .booking-bar-total {
@@ -2015,10 +2183,22 @@ footer > span {
     grid-column: auto;
   }
   .modal-summary {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+    padding: 12px 8px;
+  }
+  .modal-summary small {
+    font-size: 10px;
+  }
+  .modal-summary strong {
+    font-size: 13px;
+  }
+  .modal-summary-court strong {
+    width: 45px;
+    height: 40px;
+    font-size: 15px;
   }
   .confirmation-modal {
-    width: min(340px, 100%);
     padding: 18px 14px;
   }
   .confirmation-modal .success-mark {
@@ -2054,12 +2234,19 @@ footer > span {
     padding: 14px;
     gap: 13px;
   }
-  .qr-code {
+  .qr-code,
+  .money-icon {
     width: 68px;
     height: 68px;
   }
+  .payment-row small {
+    font-size: 11px;
+  }
   .payment-row strong {
-    font-size: 23px;
+    font-size: 30px;
+  }
+  .payment-row p {
+    font-size: 12px;
   }
   .confirmation-actions {
     grid-template-columns: 1fr;
@@ -2142,7 +2329,7 @@ footer > span {
   display: flex;
   align-items: center;
   gap: 11px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line) !important;
   border-radius: 8px;
   background: var(--white);
   color: var(--ink);
@@ -2276,6 +2463,8 @@ footer > span {
 }
 .facility-heading {
   border-left: 1px solid var(--line);
+  display: flex;
+  justify-content: center;
 }
 .facility-title-row {
   min-width: 0;
@@ -2500,12 +2689,12 @@ footer > span {
     gap: 5px;
   }
   .sport-icon {
-    width: 24px;
-    height: 24px;
-    font-size: 8px;
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
   }
   .sport-button strong {
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.1;
   }
   .sport-button small {
@@ -2538,7 +2727,7 @@ footer > span {
   }
   .availability-corner,
   .facility-heading {
-    min-height: 58px;
+    min-height: 65px;
     padding: 8px 5px;
   }
   .availability-corner small,
@@ -2546,10 +2735,14 @@ footer > span {
     font-size: 7px;
   }
   .facility-heading span {
-    width: 28px;
+    /* width: 28px;
     height: 30px;
     flex-basis: 28px;
-    font-size: 10px;
+    font-size: 10px; */
+    width: 40px;
+    height: 35px;
+    flex-basis: 46px;
+    font-size: 14px;
   }
   .facility-heading strong {
     font-size: 9px;
@@ -2562,14 +2755,14 @@ footer > span {
     padding: 6px 5px;
   }
   .time-label strong {
-    font-size: 9px;
+    font-size: 10px;
   }
   .time-label small {
-    font-size: 7px;
+    font-size: 8px;
   }
   .slot-cell {
     min-height: 40px;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.2px;
   }
   .gallery-section {
@@ -2607,11 +2800,11 @@ footer > span {
   font-weight: 800;
 }
 .alert-region {
+  display: none;
   position: fixed;
   z-index: 120;
   right: 18px;
   top: 92px;
-  display: grid;
   gap: 8px;
   width: min(360px, calc(100% - 28px));
   pointer-events: none;
@@ -2714,6 +2907,17 @@ footer > span {
   align-items: flex-end;
   gap: 8px;
 }
+.admin-date-range-top {
+  width: fit-content;
+  margin: 0px 0 -17px auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+body:not([data-admin-active="booking"]) .admin-date-range-top {
+  display: none;
+}
 .admin-date-range-filter label {
   display: grid;
   gap: 4px;
@@ -2749,31 +2953,30 @@ footer > span {
   gap: 8px;
 }
 .admin-sport-options .sport-button {
-  min-height: 52px;
-  padding: 8px;
+  min-height: 78px;
+  padding: 12px 14px;
+  gap: 11px;
 }
 .admin-sport-options .sport-icon {
-  width: 30px;
-  height: 30px;
+  width: 42px;
+  height: 42px;
+  font-size: 11px;
 }
 .admin-date-scroller {
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(
-    var(--admin-date-count, 7),
-    calc((100% - 63px) / 10)
-  );
+  grid-template-columns: repeat(var(--admin-date-count, 7), minmax(78px, 1fr));
   width: 100%;
   overflow-x: auto;
-  gap: 7px;
+  gap: 10px;
+  scrollbar-width: none;
 }
 .admin-date-scroller .date-button {
-  min-width: 0;
-  height: auto;
-  min-height: 86px;
-  aspect-ratio: 1;
-  padding: 7px 6px 6px;
-  gap: 1px;
+  min-width: 78px;
+  height: 82px;
+  min-height: 0;
+  aspect-ratio: auto;
+  padding: 8px 6px 7px;
 }
 .admin-date-scroller .date-button i {
   top: 7px;
@@ -2803,8 +3006,8 @@ footer > span {
 }
 .admin-court-legend i.paid,
 .admin-booking-slot.paid {
-  background: #e9edff;
-  color: #253cc1;
+  background: #ecfbd7;
+  color: #315f00;
 }
 .admin-court-legend i.checkedin,
 .admin-booking-slot.checkedin {
@@ -2818,8 +3021,8 @@ footer > span {
 }
 .admin-court-legend i.unpaid,
 .admin-booking-slot.unpaid {
-  background: #fff0d8;
-  color: #9d5b08;
+  background: #e9edff;
+  color: #253cc1;
 }
 .admin-court-wrap {
   margin: 0 17px 17px;
@@ -2828,6 +3031,21 @@ footer > span {
   --admin-booking-row-height: 58px;
   min-width: calc(116px + var(--facility-count) * 180px);
   grid-template-columns: 116px repeat(var(--facility-count), minmax(180px, 1fr));
+}
+.admin-court-booking-grid .facility-heading {
+  display: grid;
+  place-items: center;
+}
+.admin-court-booking-grid .facility-title-row {
+  display: grid;
+  place-items: center;
+  width: 100%;
+}
+.admin-court-booking-grid .facility-heading span {
+  width: 42px;
+  height: 34px;
+  flex-basis: 42px;
+  font-size: 13px;
 }
 .admin-booking-slot {
   position: relative;
@@ -2906,18 +3124,20 @@ button.admin-booking-slot:not(:disabled):hover {
 .admin-booking-ticket-top div {
   min-width: 0;
   display: grid;
+  justify-items: start;
   gap: 6px;
+  text-align: left;
 }
 .admin-booking-ticket-top small {
   color: #919aa8;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.7px;
 }
 .admin-booking-ticket-top strong {
   overflow-wrap: anywhere;
-  font-size: 17px;
+  font-size: 19px;
   line-height: 1.2;
 }
 .admin-booking-ticket-top .code {
@@ -2927,7 +3147,7 @@ button.admin-booking-slot:not(:disabled):hover {
 .admin-booking-summary {
   margin: 0 0 16px;
   padding: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0;
   border: 1px solid var(--line);
   border-top: 0;
@@ -2936,30 +3156,64 @@ button.admin-booking-slot:not(:disabled):hover {
   background: var(--white);
 }
 .admin-booking-summary div {
+  grid-column: span 2;
   min-width: 0;
   padding: 15px 16px;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 5px;
   border-left: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   background: var(--white);
+  text-align: left;
 }
-.admin-booking-summary div:nth-child(3n + 1) {
+.admin-booking-summary div:nth-child(3),
+.admin-booking-summary div:nth-child(6n + 1) {
   border-left: 0;
 }
-.admin-booking-summary div:nth-last-child(-n + 3) {
-  border-bottom: 0;
+.admin-booking-summary .admin-booking-half {
+  grid-column: span 3;
 }
 .admin-booking-summary small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
 .admin-booking-summary strong {
   color: var(--ink);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+.admin-booking-summary .admin-booking-court strong {
+  width: 44px;
+  height: 34px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--lime);
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 15px;
+}
+.admin-booking-summary .admin-booking-amount {
+  grid-column: 1 / -1;
+  border-left: 0;
+  border-bottom: 0;
+  text-align: left;
+}
+.admin-booking-summary .admin-booking-amount strong {
+  color: var(--blue);
+  font-size: 30px;
+  line-height: 1.1;
+}
+.admin-booking-summary .admin-booking-amount small {
+  color: var(--ink);
+  font-size: 13px;
 }
 .admin-booking-modal-actions {
   display: flex;
@@ -2971,12 +3225,12 @@ button.admin-booking-slot:not(:disabled):hover {
   min-width: 130px;
 }
 .admin-booking-slot.paid {
-  color: #1e2f9a;
+  color: #315f00;
 }
 .admin-booking-slot.paid strong,
 .admin-booking-slot.paid span,
 .admin-booking-slot.paid small {
-  color: #1e2f9a;
+  color: #315f00;
 }
 .admin-booking-slot.checkedin {
   color: #315f00;
@@ -2995,12 +3249,12 @@ button.admin-booking-slot:not(:disabled):hover {
   color: #9f1d2c;
 }
 .admin-booking-slot.unpaid {
-  color: #784100;
+  color: #253cc1;
 }
 .admin-booking-slot.unpaid strong,
 .admin-booking-slot.unpaid span,
 .admin-booking-slot.unpaid small {
-  color: #784100;
+  color: #253cc1;
 }
 .booking-table-panel,
 .profile-panel,
@@ -3377,6 +3631,10 @@ button.admin-booking-slot:not(:disabled):hover {
     display: grid;
     grid-template-columns: 1fr 1fr;
   }
+  .admin-date-range-top {
+    margin: 10px 0 -15px;
+    padding: 10px;
+  }
   .admin-date-range-filter input {
     width: 100%;
   }
@@ -3385,51 +3643,57 @@ button.admin-booking-slot:not(:disabled):hover {
     gap: 6px;
   }
   .admin-sport-options .sport-button {
-    min-height: 48px;
+    min-height: 58px;
     padding: 7px 5px;
-    gap: 6px;
+    gap: 5px;
   }
   .admin-sport-options .sport-icon {
-    width: 24px;
-    height: 24px;
-    font-size: 8px;
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+  .admin-date-scroller {
+    grid-template-columns: repeat(var(--admin-date-count, 7), 72px);
+  }
+  .admin-date-scroller .date-button {
+    min-width: 72px;
   }
   .admin-sport-options .sport-button strong {
-    font-size: 10px;
+    font-size: 11px;
+    line-height: 1.1;
   }
   .admin-sport-options .sport-button small {
-    font-size: 7px;
+    font-size: 8px;
+    line-height: 1.15;
+    letter-spacing: 0.2px;
   }
   .admin-date-scroller {
     overflow-x: auto;
-    grid-template-columns: repeat(
-      var(--admin-date-count, 7),
-      calc((100% - 12px) / 4)
-    );
-    gap: 4px;
+    grid-template-columns: repeat(var(--admin-date-count, 7), 72px);
+    gap: 10px;
   }
   .admin-date-scroller .date-button {
-    height: auto;
-    min-width: 0;
-    min-height: 48px;
-    aspect-ratio: 1;
-    padding: 6px 3px 5px;
-    border-radius: 5px;
+    min-width: 72px;
+    height: 82px;
+    min-height: 0;
+    aspect-ratio: auto;
+    padding: 8px 6px 7px;
+    border-radius: 7px;
   }
   .admin-date-scroller .date-button small {
-    font-size: 7px;
+    font-size: 10px;
   }
   .admin-date-scroller .date-button strong {
-    font-size: 13px;
+    font-size: 20px;
   }
   .admin-date-scroller .date-button em {
-    font-size: 7px;
+    font-size: 9px;
   }
   .admin-date-scroller .date-button i {
-    top: 5px;
-    right: 5px;
-    width: 10px;
-    height: 10px;
+    top: 7px;
+    right: 7px;
+    width: 12px;
+    height: 12px;
     border-width: 2px;
   }
   .admin-court-wrap {
@@ -3459,7 +3723,15 @@ button.admin-booking-slot:not(:disabled):hover {
     font-size: 8px;
   }
   .admin-booking-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .admin-booking-summary div {
+    grid-column: span 2;
+    border-left: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .admin-booking-summary .admin-booking-half {
+    grid-column: span 3;
   }
   .admin-booking-summary div:nth-child(3n + 1) {
     border-left: 1px solid var(--line);
@@ -3467,11 +3739,19 @@ button.admin-booking-slot:not(:disabled):hover {
   .admin-booking-summary div:nth-child(2n + 1) {
     border-left: 0;
   }
+  .admin-booking-summary div:nth-child(5) {
+    border-left: 1px solid var(--line);
+  }
   .admin-booking-summary div:nth-last-child(-n + 3) {
     border-bottom: 1px solid var(--line);
   }
-  .admin-booking-summary div:nth-last-child(-n + 2) {
+  .admin-booking-summary .admin-booking-amount {
+    grid-column: 1 / -1;
+    border-left: 0;
     border-bottom: 0;
+  }
+  .admin-booking-summary .admin-booking-amount strong {
+    font-size: 30px;
   }
   .admin-booking-modal-actions {
     display: grid;

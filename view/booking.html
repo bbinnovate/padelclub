@@ -17,7 +17,7 @@
   </head>
   <body data-page="admin" data-admin-active="booking">
     <template id="adminPageContent">
-      <button
+      <!-- <button
         class="state-toggle-button"
         id="bookingStateToggle"
         type="button"
@@ -34,16 +34,22 @@
         <article><div><span>Unpaid Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
         <article><div><span>Expected Revenue Today</span></div><strong>...</strong><small>Excludes cancelled</small></article>
         <article><div><span>Expected Revenue This Month</span></div><strong>...</strong><small>Excludes cancelled</small></article>
+      </div> -->
+
+      <div class="admin-date-range-filter admin-date-range-top">
+        <label><span>From</span><input id="adminCourtStartDate" type="date" /></label>
+        <label><span>To</span><input id="adminCourtEndDate" type="date" /></label>
+      </div>
+
+      <div class="pulse-banner">
+        <div><span class="pulse-icon">↗</span><p><small>Today at a glance</small><strong>Your multi-sport facility is running at 74% occupancy.</strong></p></div>
+        <span>22 sessions still to play</span>
       </div>
 
       <article class="admin-court-panel">
         <div class="panel-heading admin-court-heading">
           <div class="admin-court-title-row">
             <div><small>Court Booking</small><h2 id="adminCourtBookingTitle">Court Booking</h2></div>
-            <div class="admin-date-range-filter">
-              <label><span>From</span><input id="adminCourtStartDate" type="date" /></label>
-              <label><span>To</span><input id="adminCourtEndDate" type="date" /></label>
-            </div>
           </div>
           <div class="admin-court-filters">
             <div class="sport-options admin-sport-options" id="adminCourtSportOptions"></div>

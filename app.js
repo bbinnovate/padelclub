@@ -46,6 +46,9 @@ const state = {
   customerLookupRequestId: 0,
   customerLookupTimer: null,
   customerLookupLoading: false,
+  bookingLimitTimer: null,
+  adminUpdateTimer: null,
+  appMessageTimer: null,
 };
 const ADMIN_BOOKINGS_PAGE_SIZE = 10;
 
@@ -53,6 +56,7 @@ const sports = {
   padel: {
     name: "Padel",
     short: "P",
+    bookingCode: "A",
     unit: "Court",
     count: 2,
     maxSlots: 6,
@@ -63,20 +67,22 @@ const sports = {
   pickleball: {
     name: "Pickleball",
     short: "PB",
+    bookingCode: "B",
     unit: "Court",
     count: 4,
     maxSlots: 4,
-    pricePerSlot: 800,
+    pricePerSlot: 600,
     // detail: "Competition court",
     players: [2, 3, 4],
   },
   cricket: {
     name: "Turf Cricket",
     short: "TC",
+    bookingCode: "C",
     unit: "Ground",
     count: 3,
     maxSlots: 6,
-    pricePerSlot: 1500,
+    pricePerSlot: 1250,
     // detail: "Floodlit turf",
     players: [6, 8, 10, 12],
   },
@@ -94,8 +100,10 @@ const elements = {
   availabilityGrid: $("#availabilityGrid"),
   bookingBar: $("#bookingBar"),
   detailsModal: $("#detailsModal"),
+  bookingLimitModal: $("#bookingLimitModal"),
   confirmationModal: $("#confirmationModal"),
   adminBookingModal: $("#adminBookingModal"),
+  adminUpdateModal: $("#adminUpdateModal"),
   authModal: $("#authModal"),
   bookingForm: $("#bookingForm"),
   authForm: $("#authForm"),
@@ -112,6 +120,8 @@ const FIREBASE_AUTH_BASE_URL = "https://identitytoolkit.googleapis.com/v1";
 const FIRESTORE_BASE_URL = hasFirebaseConfig
   ? `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${FIRESTORE_DATABASE}/documents`
   : "";
+const WEEKLY_BOOKING_LIMIT_MINUTES = 600;
+const DAILY_BOOKING_LIMIT_MINUTES = 240;
 
 function toFirestoreValue(value) {
   if (value instanceof Date) return { timestampValue: value.toISOString() };
@@ -213,6 +223,30 @@ function formatCurrency(amount) {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function formatDurationHours(minutes) {
+  const hours = minutes / 60;
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} ${hours === 1 ? "hour" : "hours"}`;
+}
+
+function getWeekRange(date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const day = start.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + mondayOffset);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  return { start, end };
+}
+
+function getDayRange(date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 1);
+  return { start, end };
 }
 
 function minutesToTime(total) {
@@ -379,9 +413,15 @@ function setBookingSubmitDisabled(disabled) {
 
 function setCustomerLookupStatus(message = "", type = "") {
   const status = $("#customerLookupStatus");
-  if (!status) return;
-  status.textContent = message;
-  status.className = `lookup-status ${type}`.trim();
+  if (status) {
+    status.textContent = message;
+    status.className = `lookup-status ${type}`.trim();
+  }
+  const indicator = $("#customerLookupIndicator");
+  if (!indicator) return;
+  indicator.className = `lookup-indicator ${type === "loading" || type === "success" ? type : ""}`.trim();
+  indicator.setAttribute("aria-hidden", type === "loading" || type === "success" ? "false" : "true");
+  indicator.setAttribute("aria-label", type === "loading" ? "Checking customer" : type === "success" ? "Customer found" : "");
 }
 
 async function lookupCustomerFromMobile() {
@@ -399,7 +439,7 @@ async function lookupCustomerFromMobile() {
 
   state.customerLookupLoading = true;
   setBookingSubmitDisabled(true);
-  setCustomerLookupStatus("Checking customer...", "loading");
+  setCustomerLookupStatus("", "loading");
 
   try {
     const customer = await findCustomerByMobile(`+91${digits}`);
@@ -410,12 +450,12 @@ async function lookupCustomerFromMobile() {
       elements.bookingForm.elements.email.value = customer.email || elements.bookingForm.elements.email.value;
       setCustomerLookupStatus("Customer found. Details filled.", "success");
     } else {
-      setCustomerLookupStatus("New customer. Please enter name.", "info");
+      setCustomerLookupStatus("");
     }
   } catch (error) {
     if (requestId === state.customerLookupRequestId) {
       console.warn("Customer lookup failed", error);
-      setCustomerLookupStatus("Could not check customer. You can continue.", "error");
+      setCustomerLookupStatus("");
     }
   } finally {
     if (requestId === state.customerLookupRequestId) {
@@ -426,22 +466,55 @@ async function lookupCustomerFromMobile() {
 }
 
 function handleBookingMobileInput(event) {
+  hideBookingLimitModal();
   const input = event.target;
   input.value = getMobileDigits(input.value);
   clearTimeout(state.customerLookupTimer);
-  setCustomerLookupStatus(input.value.length === 10 ? "Ready to check customer..." : "");
+  setCustomerLookupStatus("");
   if (input.value.length === 10) {
     state.customerLookupTimer = setTimeout(lookupCustomerFromMobile, 250);
   }
 }
 
 function showAlert(message, type = "success") {
-  if (!elements.alertRegion) return;
-  const alert = document.createElement("div");
-  alert.className = `app-alert ${type}`;
-  alert.textContent = message;
-  elements.alertRegion.appendChild(alert);
-  setTimeout(() => alert.remove(), 4800);
+  let modal = $("#appMessageModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.className = "modal-backdrop app-message-backdrop";
+    modal.id = "appMessageModal";
+    modal.hidden = true;
+    modal.innerHTML = `
+      <section class="modal limit-modal app-message-modal">
+        <button class="modal-close" data-app-message-close type="button">&times;</button>
+        <p class="eyebrow dark centered"><span></span> Notice <span></span></p>
+        <h2 id="appMessageTitle">UPDATED<em>.</em></h2>
+        <p id="appMessageText"></p>
+      </section>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector("[data-app-message-close]")?.addEventListener("click", () => hideAppMessageModal());
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) hideAppMessageModal();
+    });
+  }
+
+  const title = $("#appMessageTitle");
+  const text = $("#appMessageText");
+  modal.className = `modal-backdrop app-message-backdrop ${type}`;
+  if (title) {
+    const label = type === "error" ? "ERROR" : type === "info" ? "NOTICE" : "UPDATED";
+    title.innerHTML = `${label}<em>.</em>`;
+  }
+  if (text) text.textContent = message;
+  clearTimeout(state.appMessageTimer);
+  modal.hidden = false;
+  state.appMessageTimer = setTimeout(hideAppMessageModal, 5000);
+}
+
+function hideAppMessageModal() {
+  clearTimeout(state.appMessageTimer);
+  const modal = $("#appMessageModal");
+  if (modal) modal.hidden = true;
 }
 
 function getFirebaseErrorMessage(error) {
@@ -473,11 +546,12 @@ function getFirebaseErrorMessage(error) {
 function setButtonLoading(button, loading, label = "Working...") {
   if (!button) return;
   if (loading) {
-    button.dataset.originalText = button.innerHTML;
+    if (!button.dataset.originalText) button.dataset.originalText = button.innerHTML;
     button.innerHTML = `<span class="button-spinner"></span>${label}`;
     button.disabled = true;
   } else {
     button.innerHTML = button.dataset.originalText || button.innerHTML;
+    delete button.dataset.originalText;
     button.disabled = false;
   }
 }
@@ -496,7 +570,7 @@ function renderSports() {
       ([key, sport]) => `
     <button class="sport-button ${state.selectedSport === key ? "active" : ""}" data-sport="${key}" type="button">
       <span class="sport-icon">${sport.short}</span>
-      <span><strong>${sport.name}</strong><small>${sport.count} ${sport.unit.toLowerCase()}${sport.count > 1 ? "s" : ""} - max ${sport.maxSlots / 2} hrs</small></span>
+      <span><strong>${sport.name}</strong><small>${sport.count} ${sport.unit.toLowerCase()}${sport.count > 1 ? "s" : ""}</small></span>
     </button>
   `,
     )
@@ -695,7 +769,7 @@ function renderAvailability() {
     ${facilities
       .map(
         (facility) => `
-      <div class="facility-heading"><div class="facility-title-row"><span>${sport.short}${facility.id}</span><strong>${facility.name}</strong></div></div>
+      <div class="facility-heading"><div class="facility-title-row"><span>${sport.short}${facility.id}</span></div></div>
     `,
       )
       .join("")}
@@ -748,7 +822,6 @@ function getAdminSlotBooking(facilityId, slotIndex) {
 function getAdminBookingSlotClass(booking) {
   if (!booking) return "";
   if (booking.status === "Cancelled") return "cancelled";
-  if (booking.status === "Checked-In") return "checkedin";
   if (booking.paymentStatus === "Paid") return "paid";
   return "unpaid";
 }
@@ -767,9 +840,8 @@ function renderAdminBookingModalActions(booking) {
 
   const id = getAdminBookingId(booking);
   const actions = [];
-  if (booking.status !== "Checked-In" && booking.status !== "Cancelled") actions.push(["checked-in", "Checked-In"]);
   if (booking.paymentStatus !== "Paid" && booking.status !== "Cancelled") actions.push(["paid", "Paid"]);
-  if (booking.status !== "Cancelled" && booking.status !== "Checked-In") actions.push(["cancelled", "Cancelled"]);
+  if (booking.status !== "Cancelled") actions.push(["cancelled", "Cancel"]);
 
   actionsElement.innerHTML = actions.length
     ? actions
@@ -786,6 +858,111 @@ function renderAdminBookingModalActions(booking) {
   });
 }
 
+function getBookingCourtBadge(booking = {}) {
+  const sportShort = sports[booking.sportKey]?.short || (booking.sportName || "").trim().charAt(0).toUpperCase() || "P";
+  const facilityId = Number(booking.facilityId);
+  if (facilityId) return `${sportShort}${facilityId}`;
+  const courtNumber = String(booking.courtName || booking.facilityName || "").match(/\d+/)?.[0];
+  return courtNumber ? `${sportShort}${courtNumber}` : sportShort;
+}
+
+function getBookingAmountStatusLabel(booking = {}) {
+  return booking.paymentStatus === "Paid" ? "Paid" : "Due";
+}
+
+async function findBookingByToken(bookingToken) {
+  const token = String(bookingToken || "").trim();
+  if (!token || !firebaseReady) return null;
+  const tokenField = token.length > 12 ? "confirmationToken" : "bookingToken";
+
+  if (firebaseSdkReady) {
+    const snapshot = await bookingsRef.where(tokenField, "==", token).limit(1).get();
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    return { docId: doc.id, ...doc.data() };
+  }
+
+  if (firebaseRestReady) {
+    const matches = await runFirestoreRestCollectionQuery("Bookings", {
+      where: {
+        fieldFilter: {
+          field: { fieldPath: tokenField },
+          op: "EQUAL",
+          value: { stringValue: token },
+        },
+      },
+      limit: 1,
+    });
+    if (!matches.length) return null;
+    const document = matches[0].document;
+    return { docId: document.name.split("/").pop(), ...fromFirestoreFields(document.fields || {}) };
+  }
+
+  return null;
+}
+
+function renderConfirmationCard(booking) {
+  $("#confirmationId").textContent = booking.bookingId || "-";
+  $("#verificationCode").textContent = booking.bookingToken || "-";
+  $("#confirmationAmount").textContent = formatCurrency(booking.amount || 0);
+  if ($("#confirmationAmountStatus")) $("#confirmationAmountStatus").textContent = `Amount ${getBookingAmountStatusLabel(booking)}`;
+  $("#confirmationDetails").innerHTML = `
+    <div class="admin-booking-half"><small>Name</small><strong>${booking.name || "-"}</strong></div>
+    <div class="admin-booking-half"><small>Mobile</small><strong>${booking.phoneNumber || "-"}</strong></div>
+    <div class="admin-booking-court"><small>Sport</small><strong>${getBookingCourtBadge(booking)}</strong></div>
+    <div><small>Date</small><strong>${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}</strong></div>
+    <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime || "-"} - ${booking.endTime || "-"}`}</strong></div>
+  `;
+}
+
+function showConfirmationExpired(message = "This booking confirmation link has expired.") {
+  const messageElement = $("#publicConfirmMessage");
+  if (messageElement) {
+    messageElement.hidden = false;
+    messageElement.textContent = message;
+  }
+  const ticket = $("#publicConfirmTicket");
+  if (ticket) ticket.hidden = true;
+  const mark = $(".success-mark");
+  if (mark) {
+    mark.textContent = "!";
+    mark.classList.add("expired");
+  }
+  const title = $(".public-confirm-card h2");
+  if (title) title.innerHTML = "LINK<em>EXPIRED.</em>";
+}
+
+async function renderPublicBookingConfirmation() {
+  const token = new URLSearchParams(window.location.search).get("token");
+  const messageElement = $("#publicConfirmMessage");
+  const ticket = $("#publicConfirmTicket");
+
+  if (!token) {
+    showConfirmationExpired("Booking token missing. Please use the confirmation link sent to you.");
+    return;
+  }
+
+  try {
+    const booking = await findBookingByToken(token);
+    if (!booking || booking.status === "Cancelled") {
+      showConfirmationExpired("This booking confirmation link has expired.");
+      return;
+    }
+    renderConfirmationCard(booking);
+    if (messageElement) {
+      messageElement.textContent = "";
+      messageElement.hidden = true;
+    }
+    $$(".confirmationPaymentNote").forEach((paymentNote) => {
+      paymentNote.hidden = booking.paymentStatus === "Paid";
+    });
+    if (ticket) ticket.hidden = false;
+  } catch (error) {
+    console.error(error);
+    showConfirmationExpired("This booking confirmation link has expired.");
+  }
+}
+
 function openAdminBookingModal(booking) {
   const modal = $("#adminBookingModal");
   const top = $("#adminBookingModalTop");
@@ -795,22 +972,17 @@ function openAdminBookingModal(booking) {
   if (top) {
     top.innerHTML = `
       <div><small>Booking ID</small><strong>${booking.bookingId || "-"}</strong></div>
-      <div><small>Booking Token</small><strong class="code">${booking.bookingToken || "-"}</strong></div>
+      <div><small>Unique Code</small><strong class="code">${booking.bookingToken || "-"}</strong></div>
     `;
   }
 
   summary.innerHTML = `
-    <div><small>Name</small><strong>${booking.name || "-"}</strong></div>
-    <div><small>Mobile</small><strong>${booking.phoneNumber || "-"}</strong></div>
-    <div><small>Email</small><strong>${booking.email || "-"}</strong></div>
-    <div><small>Sport</small><strong>${booking.sportName || "-"}</strong></div>
-    <div><small>Court</small><strong>${booking.courtName || booking.facilityName || "-"}</strong></div>
+    <div class="admin-booking-half"><small>Name</small><strong>${booking.name || "-"}</strong></div>
+    <div class="admin-booking-half"><small>Mobile</small><strong>${booking.phoneNumber || "-"}</strong></div>
+    <div class="admin-booking-court"><small>Sport</small><strong>${getBookingCourtBadge(booking)}</strong></div>
     <div><small>Date</small><strong>${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}</strong></div>
     <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime || "-"} - ${booking.endTime || "-"}`}</strong></div>
-    <div><small>Duration</small><strong>${booking.durationLabel || "-"}</strong></div>
-    <div><small>Amount</small><strong>${formatCurrency(booking.amount || 0)}</strong></div>
-    <div><small>Status</small><strong>${booking.status || "-"}</strong></div>
-    <div><small>Payment</small><strong>${booking.paymentStatus || "-"}</strong></div>
+    <div class="admin-booking-amount"><small>Amount ${getBookingAmountStatusLabel(booking)}</small><strong>${formatCurrency(booking.amount || 0)}</strong></div>
   `;
   renderAdminBookingModalActions(booking);
   modal.hidden = false;
@@ -963,7 +1135,7 @@ function renderAdminCourtBooking() {
     ${facilities
       .map(
         (facility, facilityIndex) => `
-      <div class="facility-heading" style="grid-column: ${facilityIndex + 2}; grid-row: 1;"><div class="facility-title-row"><span>${sport.short}${facility.id}</span><strong>${facility.name}</strong></div></div>
+      <div class="facility-heading" style="grid-column: ${facilityIndex + 2}; grid-row: 1;"><div class="facility-title-row"><span>${sport.short}${facility.id}</span></div></div>
     `,
       )
       .join("")}
@@ -985,7 +1157,7 @@ function renderAdminCourtBooking() {
           return `<button class="admin-booking-slot ${className} ${merge.isStart ? "merged-start" : ""}" data-admin-booking-id="${booking ? getAdminBookingId(booking) : ""}" style="grid-column: ${facilityIndex + 2}; grid-row: ${slotIndex + 2} / span ${merge.span};" type="button" ${booking ? "" : "disabled"}>
             ${
               booking
-                ? `<div class="admin-booking-slot-content"><span>${booking.name || "Guest"}</span><span>${booking.phoneNumber || "-"}</span><small>${booking.bookingId || ""}</small><small>${booking.status || "Booked"} / ${booking.paymentStatus || "-"}</small></div>`
+                ? `<div class="admin-booking-slot-content"><span>${booking.name || "Guest"}</span><span>${booking.phoneNumber || "-"}</span><small>${booking.paymentStatus || "-"}</small></div>`
                 : `<span>Available</span>`
             }
           </button>`;
@@ -1005,6 +1177,7 @@ function renderAdminCourtBooking() {
 }
 
 function selectSlot(facilityId, slotIndex) {
+  hideBookingLimitModal();
   if (isPastSlot(slotIndex) || isUnavailable(facilityId, slotIndex)) {
     showMessage("This time slot cannot be selected.", "error");
     renderAvailability();
@@ -1057,6 +1230,29 @@ function hideMessage() {
   elements.slotMessage.hidden = true;
 }
 
+function showBookingLimitModal(message) {
+  if (!elements.bookingLimitModal) return;
+  const messageElement = $("#bookingLimitMessage");
+  if (messageElement) messageElement.textContent = message;
+  clearTimeout(state.bookingLimitTimer);
+  elements.bookingLimitModal.hidden = false;
+  state.bookingLimitTimer = setTimeout(() => closeModal(elements.bookingLimitModal), 30000);
+}
+
+function hideBookingLimitModal() {
+  clearTimeout(state.bookingLimitTimer);
+  if (elements.bookingLimitModal) elements.bookingLimitModal.hidden = true;
+}
+
+function showAdminUpdateModal(message = "Booking updated.") {
+  if (!elements.adminUpdateModal) return;
+  const messageElement = $("#adminUpdateMessage");
+  if (messageElement) messageElement.textContent = message;
+  clearTimeout(state.adminUpdateTimer);
+  elements.adminUpdateModal.hidden = false;
+  state.adminUpdateTimer = setTimeout(() => closeModal(elements.adminUpdateModal), 5000);
+}
+
 function updateBookingBar() {
   if (!elements.bookingBar) return;
   if (!state.selectedSlots.length) {
@@ -1084,9 +1280,9 @@ function showDetailsModal() {
   }
 
   $("#modalSummary").innerHTML = `
-  <div>
+  <div class="modal-summary-court">
     <small>Sport</small>
-    <strong>${selection.sport.short}${selection.facility.id} - ${selection.facility.name}</strong>
+    <strong>${selection.sport.short}${selection.facility.id}</strong>
   </div>
   <div>
     <small>Date</small>
@@ -1094,11 +1290,11 @@ function showDetailsModal() {
   </div>
   <div>
     <small>Time</small>
-    <strong>${selection.startTime} - ${selection.endTime}</strong>
+    <strong class="modal-summary-time">${selection.startTime} to ${selection.endTime}</strong>
   </div>
   <div>
-    <small>Duration</small>
-    <strong>${selection.durationLabel}</strong>
+    <small>Amount</small>
+    <strong>${formatCurrency(selection.price)}</strong>
   </div>
   `;
   $("#playerOptions").innerHTML = selection.sport.players
@@ -1112,6 +1308,7 @@ function showDetailsModal() {
   elements.bookingForm.elements.mobile.value = "";
   elements.bookingForm.elements.email.value = "";
   setCustomerLookupStatus("");
+  hideBookingLimitModal();
   setBookingSubmitDisabled(false);
   elements.detailsModal.hidden = false;
   document.body.style.overflow = "hidden";
@@ -1141,6 +1338,64 @@ async function bookingDocumentExists(bookingId) {
     return Boolean(doc);
   }
   return false;
+}
+
+function getBookingMonthPrefix(bookingDate) {
+  return String((bookingDate.getMonth() + 1)).padStart(2, "0");
+}
+
+function getBookingIdPrefix(sportKey, bookingDate) {
+  return `${getBookingMonthPrefix(bookingDate)}${sports[sportKey]?.bookingCode || "A"}`;
+}
+
+async function fetchBookingsByIdPrefix(prefix) {
+  const localMatches = state.allBookings.filter((booking) => String(booking.bookingId || "").startsWith(prefix));
+
+  if (firebaseSdkReady) {
+    const snapshot = await bookingsRef
+      .where("bookingId", ">=", prefix)
+      .where("bookingId", "<", `${prefix}\uf8ff`)
+      .limit(1000)
+      .get();
+    const remoteMatches = snapshot.docs.map((doc) => ({ docId: doc.id, ...doc.data() }));
+    const byId = new Map([...localMatches, ...remoteMatches].map((booking) => [booking.docId || booking.bookingId, booking]));
+    return Array.from(byId.values());
+  }
+
+  if (firebaseRestReady) {
+    const matches = await runFirestoreRestCollectionQuery("Bookings", {
+      where: {
+        compositeFilter: {
+          op: "AND",
+          filters: [
+            {
+              fieldFilter: {
+                field: { fieldPath: "bookingId" },
+                op: "GREATER_THAN_OR_EQUAL",
+                value: { stringValue: prefix },
+              },
+            },
+            {
+              fieldFilter: {
+                field: { fieldPath: "bookingId" },
+                op: "LESS_THAN",
+                value: { stringValue: `${prefix}\uf8ff` },
+              },
+            },
+          ],
+        },
+      },
+      limit: 1000,
+    });
+    const remoteMatches = matches.map((item) => ({
+      docId: item.document.name.split("/").pop(),
+      ...fromFirestoreFields(item.document.fields || {}),
+    }));
+    const byId = new Map([...localMatches, ...remoteMatches].map((booking) => [booking.docId || booking.bookingId, booking]));
+    return Array.from(byId.values());
+  }
+
+  return localMatches;
 }
 
 async function bookingTokenExists(bookingToken) {
@@ -1173,33 +1428,61 @@ async function makeUniqueAlphaNumericCode(length, existsCheck) {
   throw new Error(`Could not generate a unique ${length}-character code. Please try again.`);
 }
 
-function makeBookingReference() {
-  return makeUniqueAlphaNumericCode(7, bookingDocumentExists);
+async function makeBookingReference(sportKey, bookingDate) {
+  const monthPrefix = getBookingMonthPrefix(bookingDate);
+  const bookingIdPrefix = getBookingIdPrefix(sportKey, bookingDate);
+  const existingBookings = await fetchBookingsByIdPrefix(monthPrefix);
+  const highestSequence = existingBookings.reduce((highest, booking) => {
+    const match = String(booking.bookingId || "").match(new RegExp(`^${monthPrefix}[ABC](\\d{4})$`));
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0);
+
+  for (let sequence = highestSequence + 1; sequence <= 9999; sequence += 1) {
+    const bookingId = `${bookingIdPrefix}${String(sequence).padStart(4, "0")}`;
+    if (!(await bookingDocumentExists(bookingId))) return bookingId;
+  }
+
+  throw new Error("Could not generate a booking ID for this month. Please try again.");
 }
 
 function makeVerificationCode() {
   return makeUniqueAlphaNumericCode(5, bookingTokenExists);
 }
 
+function makeConfirmationToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 // WhatsApp Share Booking: generate the prefilled sharing URL from booking details.
 function buildWhatsAppShareUrl(booking) {
-  return `https://wa.me/?text=${encodeURIComponent(buildConfirmationMessage(booking))}`;
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(buildConfirmationMessage(booking))}`;
 }
 
 function buildConfirmationMessage(booking) {
+  const confirmationUrl = getBookingConfirmationUrl(booking);
   return [
     "Booking Confirmed",
     "",
-    `Name: ${booking.name}`,
-    `Phone: ${booking.phoneNumber}`,
-    `Email: ${booking.email}`,
-    `Sport: ${booking.sportName}`,
-    `Court: ${booking.courtName || booking.facilityName}`,
+    `Name: ${booking.name || "-"}`,
+    `Mobile: ${booking.phoneNumber || "-"}`,
+    `Sport: ${booking.sportName || "-"}`,
+    `Court: ${getBookingCourtBadge(booking)}`,
     `Date: ${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}`,
-    `Time: ${booking.timeSlot || `${booking.startTime} - ${booking.endTime}`}`,
-    `Booking ID: ${booking.bookingId}`,
-    `Booking Token: ${booking.bookingToken}`,
+    `Time: ${booking.timeSlot || `${booking.startTime || "-"} - ${booking.endTime || "-"}`}`,
+    `Amount: ${formatCurrency(booking.amount || 0)}`,
+    `Booking ID: ${booking.bookingId || "-"}`,
+    `Unique Code: ${booking.bookingToken || "-"}`,
+    "",
+    "Download confirmation:",
+    confirmationUrl,
   ].join("\n");
+}
+
+function getBookingConfirmationUrl(booking) {
+  const token = encodeURIComponent(booking.confirmationToken || booking.bookingToken || "");
+  const publicBaseUrl = (window.PADEL_PUBLIC_CONFIG?.baseUrl || window.location.origin).replace(/\/+$/, "");
+  return `${publicBaseUrl}/booking-confirm?token=${token}`;
 }
 
 function getBookingPdfFileName(booking) {
@@ -1248,46 +1531,11 @@ async function createConfirmationPdfBlob(booking) {
 }
 
 async function downloadConfirmationPdf(booking, button) {
-  setButtonLoading(button, true, "Creating PDF...");
-  try {
-    const blob = await createConfirmationPdfBlob(booking);
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = getBookingPdfFileName(booking);
-    link.click();
-    URL.revokeObjectURL(link.href);
-  } catch (error) {
-    showAlert(error.message || "Could not create PDF.", "error");
-  } finally {
-    setButtonLoading(button, false);
-  }
+  window.open(getBookingConfirmationUrl(booking), "_blank", "noopener,noreferrer");
 }
 
 async function shareConfirmationOnWhatsApp(booking, button) {
-  const message = buildConfirmationMessage(booking);
-  setButtonLoading(button, true, "Preparing...");
-  try {
-    const blob = await createConfirmationPdfBlob(booking);
-    const file = new File([blob], getBookingPdfFileName(booking), { type: "application/pdf" });
-    const shareData = {
-      title: "Booking Confirmation",
-      text: message,
-      files: [file],
-    };
-
-    if (navigator.canShare?.(shareData)) {
-      await navigator.share(shareData);
-      return;
-    }
-
-    window.open(buildWhatsAppShareUrl(booking), "_blank", "noopener,noreferrer");
-    showAlert("Your browser cannot attach PDFs directly to WhatsApp. The message was opened; use Download confirmation to attach the PDF manually.", "info");
-  } catch (error) {
-    window.open(buildWhatsAppShareUrl(booking), "_blank", "noopener,noreferrer");
-    showAlert(error.message || "Could not share PDF directly. WhatsApp message opened without attachment.", "info");
-  } finally {
-    setButtonLoading(button, false);
-  }
+  window.open(buildWhatsAppShareUrl(booking), "_blank", "noopener,noreferrer");
 }
 
 // Booking Confirmation Messaging: backend endpoints can later send SMS/WhatsApp.
@@ -1345,7 +1593,97 @@ if (window.PadelMessagingService) {
   };
 }
 
-// Booking Creation: persist linked user bookings in Firestore with unique IDs and tokens.
+function getBookingDurationMinutes(booking = {}) {
+  if (Array.isArray(booking.slotIndexes) && booking.slotIndexes.length) return booking.slotIndexes.length * 30;
+  if (booking.durationMinutes) return Number(booking.durationMinutes) || 0;
+  const match = String(booking.durationLabel || "").match(/([\d.]+)\s*(hour|hr|min)/i);
+  if (!match) return 0;
+  const value = Number(match[1]);
+  return /min/i.test(match[2]) ? value : value * 60;
+}
+
+async function fetchBookingsByPhone(phoneNumber) {
+  const localMatches = state.allBookings.filter((booking) => booking.phoneNumber === phoneNumber);
+
+  if (firebaseSdkReady) {
+    const snapshot = await bookingsRef.where("phoneNumber", "==", phoneNumber).limit(100).get();
+    const remoteMatches = snapshot.docs.map((doc) => ({ docId: doc.id, ...doc.data() }));
+    const byId = new Map([...localMatches, ...remoteMatches].map((booking) => [booking.docId || booking.bookingId, booking]));
+    return Array.from(byId.values());
+  }
+
+  if (firebaseRestReady) {
+    const matches = await runFirestoreRestCollectionQuery("Bookings", {
+      where: {
+        fieldFilter: {
+          field: { fieldPath: "phoneNumber" },
+          op: "EQUAL",
+          value: { stringValue: phoneNumber },
+        },
+      },
+      limit: 100,
+    });
+    const remoteMatches = matches.map((item) => ({
+      docId: item.document.name.split("/").pop(),
+      ...fromFirestoreFields(item.document.fields || {}),
+    }));
+    const byId = new Map([...localMatches, ...remoteMatches].map((booking) => [booking.docId || booking.bookingId, booking]));
+    return Array.from(byId.values());
+  }
+
+  return localMatches;
+}
+
+function getBookedMinutesInRange(bookings, start, end) {
+  return bookings.reduce((total, booking) => {
+    if (booking.status === "Cancelled") return total;
+    const bookingDate = timestampToDate(booking.bookingDate);
+    if (!bookingDate || Number.isNaN(bookingDate.getTime()) || bookingDate < start || bookingDate >= end) return total;
+    return total + getBookingDurationMinutes(booking);
+  }, 0);
+}
+
+function validateDailyBookingLimit(bookings, selection) {
+  const { start, end } = getDayRange(selection.date);
+  const bookedMinutes = getBookedMinutesInRange(bookings, start, end);
+  const remainingMinutes = Math.max(0, DAILY_BOOKING_LIMIT_MINUTES - bookedMinutes);
+
+  if (selection.durationMinutes <= remainingMinutes) return;
+
+  if (!remainingMinutes) {
+    throw new Error("You have reached the daily booking limit of 4 hours. You cannot book more time on this day.");
+  }
+
+  throw new Error(
+    `You have already booked ${formatDurationHours(bookedMinutes)} on this day. You can book only ${formatDurationHours(
+      remainingMinutes,
+    )} more on this day. Please reduce your selected time.`,
+  );
+}
+
+async function validateBookingTimeLimits(phoneNumber, selection) {
+  const bookings = await fetchBookingsByPhone(phoneNumber);
+
+  validateDailyBookingLimit(bookings, selection);
+
+  const { start, end } = getWeekRange(selection.date);
+  const bookedMinutes = getBookedMinutesInRange(bookings, start, end);
+  const remainingMinutes = Math.max(0, WEEKLY_BOOKING_LIMIT_MINUTES - bookedMinutes);
+
+  if (selection.durationMinutes <= remainingMinutes) return;
+
+  if (!remainingMinutes) {
+    throw new Error("You have reached the weekly booking limit of 10 hours. You cannot book more time this week.");
+  }
+
+  throw new Error(
+    `You have already booked ${formatDurationHours(bookedMinutes)} this week. You can book only ${formatDurationHours(
+      remainingMinutes,
+    )} more this week. Please reduce your selected time.`,
+  );
+}
+
+// Booking Creation: bookingToken is the visible code; confirmationToken is the private link token.
 async function confirmBooking(formData, submitButton) {
   const mobileDigits = getMobileDigits(formData.get("mobile"));
   const name = formData.get("name").trim();
@@ -1371,15 +1709,19 @@ async function confirmBooking(formData, submitButton) {
     return;
   }
 
-  setButtonLoading(submitButton, true, "Saving...");
+  hideBookingLimitModal();
+  setButtonLoading(submitButton, true, "Checking...");
 
   try {
     const selection = getSelection();
-    const bookingId = await makeBookingReference();
-    const bookingToken = await makeVerificationCode();
-    const players = formData.get("players");
-    const bookingDate = toBookingDate(selection);
     const phoneNumber = `+91${mobileDigits}`;
+    await validateBookingTimeLimits(phoneNumber, selection);
+    setButtonLoading(submitButton, true, "Saving...");
+    const bookingDate = toBookingDate(selection);
+    const bookingId = await makeBookingReference(state.selectedSport, bookingDate);
+    const bookingToken = await makeVerificationCode();
+    const confirmationToken = makeConfirmationToken();
+    const players = formData.get("players");
     const customerId = makeCustomerId("", phoneNumber);
     const createdAt = firebaseSdkReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString();
     const customer = {
@@ -1393,6 +1735,7 @@ async function confirmBooking(formData, submitButton) {
     const booking = {
       bookingId,
       bookingToken,
+      confirmationToken,
       userId: null,
       customerId,
       name,
@@ -1440,14 +1783,16 @@ async function confirmBooking(formData, submitButton) {
     renderDates();
     renderAdminDashboard();
     renderAvailability();
-    showAlert(
-      smsResult.ok || whatsappResult.ok
-        ? "Booking saved and confirmation message queued."
-        : "Booking saved. Messaging endpoints are not configured yet.",
-      smsResult.ok || whatsappResult.ok ? "success" : "info",
-    );
+    // showAlert(
+    //   smsResult.ok || whatsappResult.ok
+    //     ? "Booking saved and confirmation message queued."
+    //     : "Booking saved. Messaging endpoints are not configured yet.",
+    //   smsResult.ok || whatsappResult.ok ? "success" : "info",
+    // );
   } catch (error) {
-    showAlert(error.message || "Could not create booking. Please try again.", "error");
+    const message = error.message || "Could not create booking. Please try again.";
+    if (message.includes("booking limit") || message.includes("this week") || message.includes("this day")) showBookingLimitModal(message);
+    else showAlert(message, "error");
   } finally {
     setButtonLoading(submitButton, false);
   }
@@ -1455,18 +1800,7 @@ async function confirmBooking(formData, submitButton) {
 
 function showConfirmation(booking) {
   if (!elements.confirmationModal || !elements.bookingForm) return;
-  $("#confirmationId").textContent = booking.bookingId;
-  $("#verificationCode").textContent = booking.bookingToken;
-  $("#confirmationAmount").textContent = formatCurrency(booking.amount);
-  $("#confirmationDetails").innerHTML = `
-    <div><small>Phone</small><strong>${booking.phoneNumber}</strong></div>
-    <div><small>Name</small><strong>${booking.name}</strong></div>
-    <div><small>Email</small><strong>${booking.email}</strong></div>
-    <div><small>Sport</small><strong>${booking.sportName}</strong></div>
-    <div><small>Court</small><strong>${booking.courtName || booking.facilityName}</strong></div>
-    <div><small>Date</small><strong>${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}</strong></div>
-    <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime} - ${booking.endTime}`}</strong></div>
-  `;
+  renderConfirmationCard(booking);
   $("#downloadButton").onclick = () => downloadConfirmationPdf(booking, $("#downloadButton"));
   $("#whatsappButton").onclick = () => shareConfirmationOnWhatsApp(booking, $("#whatsappButton"));
   elements.detailsModal.hidden = true;
@@ -1478,8 +1812,10 @@ function showConfirmation(booking) {
 
 function closeModal(modal) {
   if (!modal) return;
+  if (modal === elements.bookingLimitModal) clearTimeout(state.bookingLimitTimer);
+  if (modal === elements.adminUpdateModal) clearTimeout(state.adminUpdateTimer);
   modal.hidden = true;
-  if ([elements.detailsModal, elements.confirmationModal, elements.adminBookingModal, elements.authModal].every((item) => !item || item.hidden)) {
+  if ([elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].every((item) => !item || item.hidden)) {
     document.body.style.overflow = "";
   }
 }
@@ -1660,6 +1996,11 @@ function isLoginRoute() {
   return document.body.dataset.page === "login" || path === "/login" || path === "/login.html";
 }
 
+function isBookingConfirmationRoute() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return document.body.dataset.page === "booking-confirm" || path === "/booking-confirm";
+}
+
 function setRoute(path, replace = false) {
   if (window.location.pathname === path) return;
   const method = replace ? "replaceState" : "pushState";
@@ -1726,7 +2067,7 @@ function showView(view) {
   if (elements.playerView) elements.playerView.hidden = view !== "player";
   if (elements.adminView) elements.adminView.hidden = view !== "admin";
   if (elements.userDashboard) elements.userDashboard.hidden = view !== "user";
-  if ($("footer")) $("footer").hidden = view === "admin" || view === "user";
+  if ($("footer")) $("footer").hidden = view === "admin" || view === "user" || view === "confirmation";
   if (elements.bookingBar) elements.bookingBar.hidden = true;
   if (view === "player" && window.location.hash) {
     const target = $(window.location.hash);
@@ -1739,6 +2080,12 @@ function showView(view) {
 }
 
 function renderRoute({ replace = false, showDenied = false } = {}) {
+  if (isBookingConfirmationRoute()) {
+    showView("confirmation");
+    renderPublicBookingConfirmation();
+    return;
+  }
+
   if (isAdminRoute()) {
     if (state.currentProfile?.role === "admin") {
       showView("admin");
@@ -1775,11 +2122,11 @@ function navigateToHome(replace = false) {
 
 function navigateToAdmin(replace = false) {
   if (!isAdminRoute()) {
-    window.location.assign("/admin");
+    window.location.assign("/booking");
     return;
   }
 
-  setRoute("/admin", replace);
+  setRoute("/booking", replace);
   renderRoute();
 }
 
@@ -1792,16 +2139,12 @@ function renderBookingActions(booking) {
   const id = booking.docId || booking.bookingId;
   const actions = [];
 
-  if (booking.status !== "Checked-In" && booking.status !== "Cancelled") {
-    actions.push(["checked-in", "Checked-In"]);
-  }
-
   if (booking.paymentStatus !== "Paid" && booking.status !== "Cancelled") {
     actions.push(["paid", "Paid"]);
   }
 
-  if (booking.status !== "Cancelled" && booking.status !== "Checked-In") {
-    actions.push(["cancelled", "Cancelled"]);
+  if (booking.status !== "Cancelled") {
+    actions.push(["cancelled", "Cancel"]);
   }
 
   return actions.length
@@ -2350,12 +2693,7 @@ async function updateBookingFromAdmin(docId, action, button) {
     return;
   }
 
-  const updates =
-    action === "checked-in"
-      ? { status: "Checked-In" }
-      : action === "paid"
-        ? { paymentStatus: "Paid" }
-        : { status: "Cancelled" };
+  const updates = action === "paid" ? { paymentStatus: "Paid" } : { status: "Cancelled" };
 
   setButtonLoading(button, true, "Saving...");
   try {
@@ -2375,7 +2713,7 @@ async function updateBookingFromAdmin(docId, action, button) {
       renderAdminDashboard();
       renderUserDashboard();
     }
-    showAlert("Booking updated.");
+    showAdminUpdateModal("Booking updated.");
   } catch (error) {
     showAlert(error.message || "Could not update booking.", "error");
   } finally {
@@ -2444,7 +2782,7 @@ function bindEvents() {
   $$(".modal-close, [data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal($(`#${button.dataset.close}`)));
   });
-  [elements.detailsModal, elements.confirmationModal, elements.adminBookingModal, elements.authModal].filter(Boolean).forEach((modal) => {
+  [elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].filter(Boolean).forEach((modal) => {
     modal.addEventListener("click", (event) => {
       if (event.target === modal) closeModal(modal);
     });
@@ -2456,7 +2794,8 @@ function bindEvents() {
   elements.bookingForm?.elements.mobile?.addEventListener("input", handleBookingMobileInput);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      [elements.confirmationModal, elements.detailsModal, elements.adminBookingModal, elements.authModal].filter(Boolean).forEach((modal) => {
+      hideAppMessageModal();
+      [elements.confirmationModal, elements.bookingLimitModal, elements.detailsModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].filter(Boolean).forEach((modal) => {
         if (!modal.hidden) closeModal(modal);
       });
     }
