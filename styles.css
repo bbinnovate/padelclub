@@ -1138,7 +1138,7 @@ h2 em {
 .modal-summary div + div::before {
   content: "";
   position: absolute;
-  left: -3px;
+  left: -1.4px;
   top: 4px;
   bottom: 4px;
   width: 1px;
