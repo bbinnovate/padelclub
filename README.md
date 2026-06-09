@@ -17,13 +17,21 @@ A mobile-first booking experience and venue operations dashboard for a premium p
 
 ## Run locally
 
-This prototype has no runtime dependencies:
+This prototype reads browser-safe runtime config from `.env` through a small Node server:
 
 ```bash
-python3 -m http.server 8080
+npm start
 ```
 
-Then open `http://localhost:8080`.
+Then open `http://127.0.0.1:8080`.
+
+Admin route:
+
+```bash
+http://127.0.0.1:8080/admin
+```
+
+The `/admin` route serves `admin.html` and requires an admin login before the dashboard is shown.
 
 ## Firebase setup
 
@@ -31,11 +39,11 @@ The app now supports Firebase Authentication and Firestore through the browser S
 
 1. Create a Firebase project and enable Email/Password Authentication.
 2. Create Firestore collections named `Users` and `Bookings`.
-3. Copy your Firebase web app config into `firebase-config.js`.
+3. Copy your Firebase web app config into `.env`.
 4. Deploy `firestore.rules` from this repo to protect user and admin access.
 5. Promote an admin by setting `Users/{uid}.role` to `admin` in Firestore.
 
-Required deployment variables are listed in `.env.example`. SMS and WhatsApp provider credentials should be read only by backend endpoints; the browser app only stores endpoint URLs in `message-config.js`.
+Required deployment variables are listed in `.env.example`. SMS and WhatsApp provider credentials should be read only by backend endpoints; the browser app only receives endpoint URLs from `server.js`.
 
 ## Architecture
 

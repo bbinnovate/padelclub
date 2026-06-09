@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0f18" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="description" content="Multi-sport court and turf booking platform." />
+    <title>Padel Club Admin | Padel Club</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="admin" data-admin-active="overview">
+    <template id="adminPageContent">
+      <div class="pulse-banner">
+        <div><span class="pulse-icon">↗</span><p><small>Today at a glance</small><strong>Your multi-sport facility is running at 74% occupancy.</strong></p></div>
+        <span>22 sessions still to play</span>
+      </div>
+
+      <div class="metric-grid admin-metric-grid" id="adminMetrics">
+        <article><div><span>Total Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Checked-In Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Cancelled Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Paid Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Unpaid Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Expected Revenue Today</span></div><strong>...</strong><small>Excludes cancelled</small></article>
+        <article><div><span>Expected Revenue This Month</span></div><strong>...</strong><small>Excludes cancelled</small></article>
+      </div>
+
+      <article class="booking-table-panel">
+        <div class="panel-heading booking-header-row">
+          <h2>All Bookings - Manage Statuses and Payments</h2>
+          <div class="booking-search-row">
+            <input
+              id="adminBookingSearch"
+              class="booking-search-input"
+              type="search"
+              placeholder="Search by Booking ID, Token, or Customer Name"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="booking-table">
+            <thead>
+              <tr>
+                <th>Booking ID</th>
+                <th>Unique Code</th>
+                <th>Facility Details</th>
+                <th>Personal Details</th>
+                <th>Booking Date</th>
+                <th>Status</th>
+                <th>Payment Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adminBookingTable">
+              <tr><td colspan="8"><p class="empty-state">Loading bookings...</p></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-pagination" id="adminBookingPagination" hidden></div>
+      </article>
+
+      <div class="admin-grid legacy-admin-grid">
+        <article class="schedule-panel">
+          <div class="panel-heading"><div><small>Live schedule</small><h2>Today's sports</h2></div><div><button>‹</button><b>Jun 04</b><button>›</button></div></div>
+          <div class="schedule-board" id="scheduleBoard"></div>
+        </article>
+        <article class="checkin-panel">
+          <div class="panel-heading"><div><small>Front desk</small><h2>Up next</h2></div><button class="link-button">View all →</button></div>
+          <div id="checkinList"></div>
+        </article>
+      </div>
+    </template>
+    <script src="/admin-layout-loader.js?v=guest-booking-2"></script>
+  </body>
+</html>

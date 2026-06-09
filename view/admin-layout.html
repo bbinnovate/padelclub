@@ -1,0 +1,70 @@
+<div class="noise"></div>
+<div class="alert-region" id="alertRegion" aria-live="polite" aria-atomic="true"></div>
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Padel Club home">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+    <span>PADEL<span>CLUB</span></span>
+  </a>
+
+  <nav class="desktop-nav" aria-label="Main navigation">
+    <a href="/#book">Book a space</a>
+    <a href="/#experience">The club</a>
+    <a href="/#gallery">Gallery</a>
+    <a href="/#pricing">Pricing</a>
+    <a href="/#faq">FAQ</a>
+  </nav>
+
+  <div class="topbar-actions">
+    <span class="account-name" id="accountName" hidden></span>
+    <button class="mode-switch" id="adminPanelButton" type="button" hidden>
+      <span class="mode-dot"></span>
+      <span>Admin Panel</span>
+    </button>
+    <button class="admin-menu-button admin-header-menu-button" id="adminHeaderMenuButton" type="button" aria-controls="adminSidebar" aria-expanded="false">☰</button>
+    <a class="mini-cta" href="/">Play now <span>↗</span></a>
+  </div>
+</header>
+
+<main id="adminView" class="admin-shell" hidden>
+  <div class="admin-sidebar-backdrop" id="adminSidebarBackdrop" hidden></div>
+  <aside class="admin-sidebar" id="adminSidebar">
+    <a class="brand admin-brand" href="#"><span class="brand-mark"><i></i><i></i></span><span>PADEL<span>CLUB</span></span></a>
+    <nav>
+      <a href="/admin" data-admin-nav="overview"><span>⌁</span>Overview</a>
+      <a href="/booking" data-admin-nav="booking"><span>▦</span>Booking</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="admin-sidebar-logout" id="adminSidebarLogout" type="button"><span>↪</span>Logout</button>
+    </div>
+  </aside>
+  <section class="admin-content">
+    <div class="admin-topbar">
+      <div class="admin-topbar-title">
+        <div><small id="adminCurrentDate">Today</small><h1 id="adminGreeting">Good day.</h1></div>
+      </div>
+      <div class="admin-actions"><button class="primary-cta compact" id="newBookingButton">+ New booking</button></div>
+    </div>
+
+    <div id="adminPageSlot"></div>
+  </section>
+</main>
+
+<div class="modal-backdrop" id="adminBookingModal" hidden>
+  <section class="modal admin-booking-modal">
+    <button class="modal-close" data-close="adminBookingModal" type="button">&times;</button>
+    <p class="eyebrow dark"><span></span> Booking details</p>
+    <h2>BOOKING<em>INFO.</em></h2>
+    <div class="admin-booking-ticket-top" id="adminBookingModalTop"></div>
+    <div class="modal-summary admin-booking-summary" id="adminBookingModalSummary"></div>
+    <div class="admin-booking-modal-actions" id="adminBookingModalActions"></div>
+  </section>
+</div>
+
+<div class="modal-backdrop limit-modal-backdrop" id="adminUpdateModal" hidden>
+  <section class="modal limit-modal admin-update-modal">
+    <button class="modal-close" data-close="adminUpdateModal" type="button">&times;</button>
+    <p class="eyebrow dark centered"><span></span> Booking status <span></span></p>
+    <h2>UPDATED<em>.</em></h2>
+    <p id="adminUpdateMessage">Booking updated.</p>
+  </section>
+</div>

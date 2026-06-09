@@ -1,0 +1,48 @@
+{
+  "rewrites": [
+    {
+      "source": "/config.js",
+      "destination": "/api/config.js"
+    },
+    {
+      "source": "/",
+      "destination": "/view/index.html"
+    },
+    {
+      "source": "/admin-layout",
+      "destination": "/view/admin-layout.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/view/admin.html"
+    },
+    {
+      "source": "/admin/",
+      "destination": "/view/admin.html"
+    },
+    {
+      "source": "/booking",
+      "destination": "/view/booking.html"
+    },
+    {
+      "source": "/booking/",
+      "destination": "/view/booking.html"
+    },
+    {
+      "source": "/booking-confirm",
+      "destination": "/view/booking-confirm.html"
+    },
+    {
+      "source": "/booking-confirm/",
+      "destination": "/view/booking-confirm.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/view/login.html"
+    },
+    {
+      "source": "/login/",
+      "destination": "/view/login.html"
+    }
+  ]
+}

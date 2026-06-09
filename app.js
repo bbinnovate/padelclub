@@ -33,56 +33,58 @@ const state = {
   allBookings: [],
   userBookings: [],
   adminBookingSearch: "",
+  adminBookingPage: 1,
+  adminBookingPages: [],
+  adminBookingQueryKey: "",
+  adminBookingLoading: false,
+  adminBookingRequestId: 0,
+  adminBookingTotal: 0,
+  adminSearchBackfillDone: false,
+  adminCourtStartDate: "",
+  adminCourtEndDate: "",
+  adminCourtSelectedDate: 0,
+  customerLookupRequestId: 0,
+  customerLookupTimer: null,
+  customerLookupLoading: false,
+  bookingLimitTimer: null,
+  adminUpdateTimer: null,
+  appMessageTimer: null,
 };
+const ADMIN_BOOKINGS_PAGE_SIZE = 10;
 
 const sports = {
   padel: {
     name: "Padel",
     short: "P",
+    bookingCode: "A",
     unit: "Court",
     count: 2,
     maxSlots: 6,
     pricePerSlot: 1250,
-    detail: "Panoramic - Pro turf",
+    // detail: "Panoramic - Pro turf",
     players: [2, 3, 4],
   },
   pickleball: {
     name: "Pickleball",
     short: "PB",
+    bookingCode: "B",
     unit: "Court",
     count: 4,
     maxSlots: 4,
-    pricePerSlot: 800,
-    detail: "Competition court",
+    pricePerSlot: 600,
+    // detail: "Competition court",
     players: [2, 3, 4],
   },
   cricket: {
     name: "Turf Cricket",
     short: "TC",
+    bookingCode: "C",
     unit: "Ground",
     count: 3,
     maxSlots: 6,
-    pricePerSlot: 1500,
-    detail: "Floodlit turf",
+    pricePerSlot: 1250,
+    // detail: "Floodlit turf",
     players: [6, 8, 10, 12],
-  },
-};
-
-const unavailableBySport = {
-  padel: {
-    1: [4, 5, 13, 14, 26, 27, 28],
-    2: [2, 3, 17, 18, 29, 30],
-  },
-  pickleball: {
-    1: [6, 7, 20, 21, 30],
-    2: [4, 5, 14, 15, 28, 29],
-    3: [10, 11, 22, 23, 32],
-    4: [2, 3, 18, 19, 26, 27],
-  },
-  cricket: {
-    1: [8, 9, 10, 11, 24, 25, 26],
-    2: [4, 5, 16, 17, 18, 30, 31],
-    3: [12, 13, 14, 22, 23, 32, 33],
   },
 };
 
@@ -98,7 +100,10 @@ const elements = {
   availabilityGrid: $("#availabilityGrid"),
   bookingBar: $("#bookingBar"),
   detailsModal: $("#detailsModal"),
+  bookingLimitModal: $("#bookingLimitModal"),
   confirmationModal: $("#confirmationModal"),
+  adminBookingModal: $("#adminBookingModal"),
+  adminUpdateModal: $("#adminUpdateModal"),
   authModal: $("#authModal"),
   bookingForm: $("#bookingForm"),
   authForm: $("#authForm"),
@@ -108,12 +113,15 @@ const elements = {
   slotMessage: $("#slotMessage"),
   alertRegion: $("#alertRegion"),
 };
+const pageName = document.body.dataset.page || "home";
 
 const FIRESTORE_DATABASE = "(default)";
 const FIREBASE_AUTH_BASE_URL = "https://identitytoolkit.googleapis.com/v1";
 const FIRESTORE_BASE_URL = hasFirebaseConfig
   ? `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${FIRESTORE_DATABASE}/documents`
   : "";
+const WEEKLY_BOOKING_LIMIT_MINUTES = 600;
+const DAILY_BOOKING_LIMIT_MINUTES = 240;
 
 function toFirestoreValue(value) {
   if (value instanceof Date) return { timestampValue: value.toISOString() };
@@ -181,9 +189,10 @@ async function setFirestoreRestDocument(collection, docId, data, idToken, merge 
 }
 
 async function getFirestoreRestDocument(collection, docId, idToken) {
-  const response = await fetch(`${FIRESTORE_BASE_URL}/${collection}/${docId}`, {
-    headers: { Authorization: `Bearer ${idToken}` },
-  });
+  const queryString = !idToken && firebaseConfig.apiKey ? `?key=${encodeURIComponent(firebaseConfig.apiKey)}` : "";
+  const headers = {};
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+  const response = await fetch(`${FIRESTORE_BASE_URL}/${collection}/${docId}${queryString}`, { headers });
   if (response.status === 404) return null;
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -193,12 +202,51 @@ async function getFirestoreRestDocument(collection, docId, idToken) {
   return fromFirestoreFields(data.fields || {});
 }
 
+async function runFirestoreRestCollectionQuery(collection, structuredQuery) {
+  const queryString = firebaseConfig.apiKey ? `?key=${encodeURIComponent(firebaseConfig.apiKey)}` : "";
+  const response = await firebaseRestRequest(`${FIRESTORE_BASE_URL}:runQuery${queryString}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: collection }],
+        ...structuredQuery,
+      },
+    }),
+  });
+  return response.filter((item) => item.document);
+}
+
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function formatDurationHours(minutes) {
+  const hours = minutes / 60;
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} ${hours === 1 ? "hour" : "hours"}`;
+}
+
+function getWeekRange(date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const day = start.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + mondayOffset);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  return { start, end };
+}
+
+function getDayRange(date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 1);
+  return { start, end };
 }
 
 function minutesToTime(total) {
@@ -272,6 +320,10 @@ function timestampToDate(value) {
   return new Date(value);
 }
 
+function toFirestoreTimestamp(date) {
+  return firebaseSdkReady ? firebase.firestore.Timestamp.fromDate(date) : date;
+}
+
 function formatBookingDate(value) {
   const date = timestampToDate(value);
   if (!date || Number.isNaN(date.getTime())) return "Not set";
@@ -301,12 +353,168 @@ function makeCustomerId(email, phoneNumber) {
   return `CUS-${safe || Date.now()}`;
 }
 
+function getMobileDigits(value = "") {
+  const digits = String(value).replace(/\D/g, "");
+  return digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits.slice(0, 10);
+}
+
+function formatIndianMobile(value = "") {
+  const digits = getMobileDigits(value);
+  return digits.length === 10 ? `+91${digits}` : "";
+}
+
+function isValidOptionalEmail(value = "") {
+  const email = value.trim();
+  return !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function findCustomerByMobile(phoneNumber) {
+  if (!firebaseReady) {
+    return null;
+  }
+
+  if (firebaseSdkReady) {
+    for (const collectionName of ["Customers", "Bookings"]) {
+      const snapshot = await db.collection(collectionName).where("phoneNumber", "==", phoneNumber).limit(1).get();
+      if (!snapshot.empty) {
+        const doc = snapshot.docs[0];
+        return { docId: doc.id, ...doc.data() };
+      }
+    }
+    return null;
+  }
+
+  if (firebaseRestReady) {
+    for (const collectionName of ["Customers", "Bookings"]) {
+      const matches = await runFirestoreRestCollectionQuery(collectionName, {
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "phoneNumber" },
+            op: "EQUAL",
+            value: { stringValue: phoneNumber },
+          },
+        },
+        limit: 1,
+      });
+      if (matches.length) {
+        const document = matches[0].document;
+        return { docId: document.name.split("/").pop(), ...fromFirestoreFields(document.fields || {}) };
+      }
+    }
+  }
+
+  return null;
+}
+
+function setBookingSubmitDisabled(disabled) {
+  const button = elements.bookingForm?.querySelector(".form-submit");
+  if (button && !button.dataset.originalText) button.disabled = disabled;
+}
+
+function setCustomerLookupStatus(message = "", type = "") {
+  const status = $("#customerLookupStatus");
+  if (status) {
+    status.textContent = message;
+    status.className = `lookup-status ${type}`.trim();
+  }
+  const indicator = $("#customerLookupIndicator");
+  if (!indicator) return;
+  indicator.className = `lookup-indicator ${type === "loading" || type === "success" ? type : ""}`.trim();
+  indicator.setAttribute("aria-hidden", type === "loading" || type === "success" ? "false" : "true");
+  indicator.setAttribute("aria-label", type === "loading" ? "Checking customer" : type === "success" ? "Customer found" : "");
+}
+
+async function lookupCustomerFromMobile() {
+  if (!elements.bookingForm) return;
+  const requestId = ++state.customerLookupRequestId;
+  const mobileInput = elements.bookingForm.elements.mobile;
+  const digits = getMobileDigits(mobileInput.value);
+
+  if (digits.length !== 10) {
+    state.customerLookupLoading = false;
+    setBookingSubmitDisabled(false);
+    setCustomerLookupStatus("");
+    return;
+  }
+
+  state.customerLookupLoading = true;
+  setBookingSubmitDisabled(true);
+  setCustomerLookupStatus("", "loading");
+
+  try {
+    const customer = await findCustomerByMobile(`+91${digits}`);
+    if (requestId !== state.customerLookupRequestId) return;
+
+    if (customer) {
+      elements.bookingForm.elements.name.value = customer.name || elements.bookingForm.elements.name.value;
+      elements.bookingForm.elements.email.value = customer.email || elements.bookingForm.elements.email.value;
+      setCustomerLookupStatus("Customer found. Details filled.", "success");
+    } else {
+      setCustomerLookupStatus("");
+    }
+  } catch (error) {
+    if (requestId === state.customerLookupRequestId) {
+      console.warn("Customer lookup failed", error);
+      setCustomerLookupStatus("");
+    }
+  } finally {
+    if (requestId === state.customerLookupRequestId) {
+      state.customerLookupLoading = false;
+      setBookingSubmitDisabled(false);
+    }
+  }
+}
+
+function handleBookingMobileInput(event) {
+  hideBookingLimitModal();
+  const input = event.target;
+  input.value = getMobileDigits(input.value);
+  clearTimeout(state.customerLookupTimer);
+  setCustomerLookupStatus("");
+  if (input.value.length === 10) {
+    state.customerLookupTimer = setTimeout(lookupCustomerFromMobile, 250);
+  }
+}
+
 function showAlert(message, type = "success") {
-  const alert = document.createElement("div");
-  alert.className = `app-alert ${type}`;
-  alert.textContent = message;
-  elements.alertRegion.appendChild(alert);
-  setTimeout(() => alert.remove(), 4800);
+  let modal = $("#appMessageModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.className = "modal-backdrop app-message-backdrop";
+    modal.id = "appMessageModal";
+    modal.hidden = true;
+    modal.innerHTML = `
+      <section class="modal limit-modal app-message-modal">
+        <button class="modal-close" data-app-message-close type="button">&times;</button>
+        <p class="eyebrow dark centered"><span></span> Notice <span></span></p>
+        <h2 id="appMessageTitle">UPDATED<em>.</em></h2>
+        <p id="appMessageText"></p>
+      </section>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector("[data-app-message-close]")?.addEventListener("click", () => hideAppMessageModal());
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) hideAppMessageModal();
+    });
+  }
+
+  const title = $("#appMessageTitle");
+  const text = $("#appMessageText");
+  modal.className = `modal-backdrop app-message-backdrop ${type}`;
+  if (title) {
+    const label = type === "error" ? "ERROR" : type === "info" ? "NOTICE" : "UPDATED";
+    title.innerHTML = `${label}<em>.</em>`;
+  }
+  if (text) text.textContent = message;
+  clearTimeout(state.appMessageTimer);
+  modal.hidden = false;
+  state.appMessageTimer = setTimeout(hideAppMessageModal, 5000);
+}
+
+function hideAppMessageModal() {
+  clearTimeout(state.appMessageTimer);
+  const modal = $("#appMessageModal");
+  if (modal) modal.hidden = true;
 }
 
 function getFirebaseErrorMessage(error) {
@@ -338,11 +546,12 @@ function getFirebaseErrorMessage(error) {
 function setButtonLoading(button, loading, label = "Working...") {
   if (!button) return;
   if (loading) {
-    button.dataset.originalText = button.innerHTML;
+    if (!button.dataset.originalText) button.dataset.originalText = button.innerHTML;
     button.innerHTML = `<span class="button-spinner"></span>${label}`;
     button.disabled = true;
   } else {
     button.innerHTML = button.dataset.originalText || button.innerHTML;
+    delete button.dataset.originalText;
     button.disabled = false;
   }
 }
@@ -350,18 +559,18 @@ function setButtonLoading(button, loading, label = "Working...") {
 function clearSelection() {
   state.selectedFacilityId = null;
   state.selectedSlots = [];
-  elements.bookingBar.hidden = true;
+  if (elements.bookingBar) elements.bookingBar.hidden = true;
   hideMessage();
 }
 
 function renderSports() {
+  if (!elements.sportOptions) return;
   elements.sportOptions.innerHTML = Object.entries(sports)
     .map(
       ([key, sport]) => `
     <button class="sport-button ${state.selectedSport === key ? "active" : ""}" data-sport="${key}" type="button">
       <span class="sport-icon">${sport.short}</span>
-      <span><strong>${sport.name}</strong><small>${sport.count} ${sport.unit.toLowerCase()}${sport.count > 1 ? "s" : ""} - max ${sport.maxSlots / 2} hrs</small></span>
-      <b>-></b>
+      <span><strong>${sport.name}</strong><small>${sport.count} ${sport.unit.toLowerCase()}${sport.count > 1 ? "s" : ""}</small></span>
     </button>
   `,
     )
@@ -372,20 +581,24 @@ function renderSports() {
       state.selectedSport = button.dataset.sport;
       clearSelection();
       renderSports();
+      renderDates();
       renderAvailability();
     });
   });
 }
 
 function renderDates() {
+  if (!elements.dateScroller) return;
   elements.dateScroller.innerHTML = dates
     .map((date, index) => {
       const day = index === 0 ? "Today" : date.toLocaleDateString("en-IN", { weekday: "short" });
-      const limited = index === 2 || index === 5;
+      const month = date.toLocaleDateString("en-IN", { month: "short" });
+      const availabilityClass = getDateAvailabilityClass(index);
       return `
-      <button class="date-button ${limited ? "limited" : ""} ${state.selectedDate === index ? "active" : ""}" data-date="${index}" type="button">
+      <button class="date-button ${availabilityClass} ${state.selectedDate === index ? "active" : ""}" data-date="${index}" type="button">
         <small>${day}</small>
         <strong>${String(date.getDate()).padStart(2, "0")}</strong>
+        <em>${month}</em>
         <i></i>
       </button>
     `;
@@ -402,30 +615,149 @@ function renderDates() {
   });
 }
 
-function isUnavailable(facilityId, slotIndex) {
-  const baseUnavailable = unavailableBySport[state.selectedSport][facilityId] || [];
-  const dateOffset = state.selectedDate % 3;
-  const bookedFromFirestore = state.allBookings.some((booking) => {
+function cloneDateAtNoon(date) {
+  const clone = new Date(date);
+  clone.setHours(12, 0, 0, 0);
+  return clone;
+}
+
+function formatDateInput(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function parseDateInput(value) {
+  const [year, month, day] = String(value || "").split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addDays(date, days) {
+  const nextDate = cloneDateAtNoon(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function ensureAdminCourtDateRange() {
+  if (!state.adminCourtStartDate) state.adminCourtStartDate = formatDateInput(dates[0]);
+  if (!state.adminCourtEndDate) state.adminCourtEndDate = formatDateInput(dates[dates.length - 1]);
+}
+
+function getAdminCourtDates() {
+  ensureAdminCourtDateRange();
+  let startDate = parseDateInput(state.adminCourtStartDate) || dates[0];
+  let endDate = parseDateInput(state.adminCourtEndDate) || dates[dates.length - 1];
+
+  if (endDate < startDate) {
+    [startDate, endDate] = [endDate, startDate];
+  }
+
+  const range = [];
+  const cursor = cloneDateAtNoon(startDate);
+  while (cursor <= endDate && range.length < 120) {
+    range.push(cloneDateAtNoon(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return range.length ? range : [cloneDateAtNoon(startDate)];
+}
+
+function getSelectedAdminCourtDate() {
+  const adminDates = getAdminCourtDates();
+  state.adminCourtSelectedDate = Math.min(Math.max(state.adminCourtSelectedDate, 0), adminDates.length - 1);
+  return adminDates[state.adminCourtSelectedDate];
+}
+
+function isBookedForSlotOnDate(sportKey, selectedDate, facilityId, slotIndex) {
+  return state.allBookings.some((booking) => {
     if (booking.status === "Cancelled") return false;
     const date = timestampToDate(booking.bookingDate);
-    const selectedDate = dates[state.selectedDate];
     return (
-      booking.sportKey === state.selectedSport &&
+      booking.sportKey === sportKey &&
       Number(booking.facilityId) === facilityId &&
       booking.slotIndexes?.includes(slotIndex) &&
       date?.toDateString() === selectedDate.toDateString()
     );
   });
+}
 
-  return baseUnavailable.includes(slotIndex) || bookedFromFirestore || (dateOffset === 2 && (slotIndex + facilityId) % 17 === 0);
+function isBookedForSlot(sportKey, dateIndex, facilityId, slotIndex) {
+  return isBookedForSlotOnDate(sportKey, dates[dateIndex], facilityId, slotIndex);
+}
+
+function isUnavailableForDate(sportKey, selectedDate, facilityId, slotIndex) {
+  return isBookedForSlotOnDate(sportKey, selectedDate, facilityId, slotIndex);
+}
+
+function isUnavailableFor(sportKey, dateIndex, facilityId, slotIndex) {
+  return isUnavailableForDate(sportKey, dates[dateIndex], facilityId, slotIndex);
+}
+
+function isUnavailable(facilityId, slotIndex) {
+  return isUnavailableFor(state.selectedSport, state.selectedDate, facilityId, slotIndex);
+}
+
+function isPastSlotFor(dateIndex, slotIndex) {
+  return isPastSlotForDate(dates[dateIndex], slotIndex);
+}
+
+function isPastSlotForDate(selectedDate, slotIndex) {
+  const now = new Date();
+  const slotStart = new Date(selectedDate);
+  slotStart.setHours(6, slotIndex * 30, 0, 0);
+  const latestSelectableStart = new Date(now.getTime() + 10 * 60 * 1000);
+  return selectedDate.toDateString() === now.toDateString() && slotStart <= latestSelectableStart;
+}
+
+function getMaxConsecutiveAvailableSlotsForDate(sportKey, selectedDate) {
+  const sport = sports[sportKey] || getSport();
+  return Array.from({ length: sport.count }, (_, index) => index + 1).reduce((bestOverall, facilityId) => {
+    let currentRun = 0;
+    let bestForFacility = 0;
+
+    times.forEach((_, slotIndex) => {
+      const available = !isPastSlotForDate(selectedDate, slotIndex) && !isUnavailableForDate(sportKey, selectedDate, facilityId, slotIndex);
+      if (available) {
+        currentRun += 1;
+        bestForFacility = Math.max(bestForFacility, currentRun);
+      } else {
+        currentRun = 0;
+      }
+    });
+
+    return Math.max(bestOverall, bestForFacility);
+  }, 0);
+}
+
+function getMaxConsecutiveAvailableSlots(dateIndex) {
+  return getMaxConsecutiveAvailableSlotsForDate(state.selectedSport, dates[dateIndex]);
+}
+
+function getDateAvailabilityClassForDate(sportKey, selectedDate) {
+  const maxConsecutiveSlots = getMaxConsecutiveAvailableSlotsForDate(sportKey, selectedDate);
+  if (maxConsecutiveSlots > 8) return "availability-green";
+  if (maxConsecutiveSlots >= 3) return "availability-orange";
+  return "availability-red";
+}
+
+function getDateAvailabilityClass(dateIndex) {
+  return getDateAvailabilityClassForDate(state.selectedSport, dates[dateIndex]);
+}
+
+function isPastSlot(slotIndex) {
+  return isPastSlotFor(state.selectedDate, slotIndex);
 }
 
 function renderAvailability() {
+  if (!elements.availabilityGrid) return;
   const sport = getSport();
   const selectedDate = dates[state.selectedDate];
   const facilities = getFacilities();
   $("#availabilityTitle").textContent = `${sport.name} - ${selectedDate.toLocaleDateString("en-IN", {
-    weekday: "long",
+    weekday: "short",
     day: "2-digit",
     month: "short",
   })}`;
@@ -437,13 +769,15 @@ function renderAvailability() {
     ${facilities
       .map(
         (facility) => `
-      <div class="facility-heading"><span>${sport.short}${facility.id}</span><strong>${facility.name}</strong><small>${facility.detail}</small></div>
+      <div class="facility-heading"><div class="facility-title-row"><span>${sport.short}${facility.id}</span></div></div>
     `,
       )
       .join("")}
     ${times
+      .map((time, slotIndex) => ({ time, slotIndex }))
+      .filter(({ slotIndex }) => !isPastSlot(slotIndex))
       .map(
-        (time, slotIndex) => `
+        ({ time, slotIndex }) => `
       <div class="time-label"><strong>${time}</strong><small>${minutesToTime(360 + (slotIndex + 1) * 30)}</small></div>
       ${facilities
         .map((facility) => {
@@ -452,7 +786,7 @@ function renderAvailability() {
           const edgeStart = selected && slotIndex === Math.min(...state.selectedSlots);
           const edgeEnd = selected && slotIndex === Math.max(...state.selectedSlots);
           return `<button
-            class="slot-cell ${unavailable ? "unavailable" : ""} ${selected ? "selected" : ""} ${edgeStart ? "edge-start" : ""} ${edgeEnd ? "edge-end" : ""}"
+            class="slot-cell ${unavailable ? "unavailable" : "available"} ${selected ? "selected" : ""} ${edgeStart ? "edge-start" : ""} ${edgeEnd ? "edge-end" : ""}"
             ${unavailable ? "disabled" : ""}
             data-facility="${facility.id}"
             data-slot="${slotIndex}"
@@ -472,7 +806,384 @@ function renderAvailability() {
   });
 }
 
+function getAdminSlotBooking(facilityId, slotIndex) {
+  const selectedDate = getSelectedAdminCourtDate();
+  return state.allBookings.find((booking) => {
+    const bookingDate = timestampToDate(booking.bookingDate);
+    return (
+      booking.sportKey === state.selectedSport &&
+      Number(booking.facilityId) === facilityId &&
+      booking.slotIndexes?.includes(slotIndex) &&
+      bookingDate?.toDateString() === selectedDate.toDateString()
+    );
+  });
+}
+
+function getAdminBookingSlotClass(booking) {
+  if (!booking) return "";
+  if (booking.status === "Cancelled") return "cancelled";
+  if (booking.paymentStatus === "Paid") return "paid";
+  return "unpaid";
+}
+
+function getAdminBookingId(booking) {
+  return booking?.docId || booking?.bookingId || "";
+}
+
+function getAdminBookingById(id) {
+  return state.allBookings.find((booking) => getAdminBookingId(booking) === id || booking.bookingId === id);
+}
+
+function renderAdminBookingModalActions(booking) {
+  const actionsElement = $("#adminBookingModalActions");
+  if (!actionsElement) return;
+
+  const id = getAdminBookingId(booking);
+  const actions = [];
+  if (booking.paymentStatus !== "Paid" && booking.status !== "Cancelled") actions.push(["paid", "Paid"]);
+  if (booking.status !== "Cancelled") actions.push(["cancelled", "Cancel"]);
+
+  actionsElement.innerHTML = actions.length
+    ? actions
+        .map(([action, label]) => `<button class="primary-cta compact ${action === "cancelled" ? "danger" : ""}" data-modal-action="${action}" data-id="${id}" type="button">${label}</button>`)
+        .join("")
+    : `<p class="empty-state">No actions available.</p>`;
+
+  $$("#adminBookingModalActions [data-modal-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await updateBookingFromAdmin(button.dataset.id, button.dataset.modalAction, button);
+      const updatedBooking = getAdminBookingById(button.dataset.id);
+      if (updatedBooking) openAdminBookingModal(updatedBooking);
+    });
+  });
+}
+
+function getBookingCourtBadge(booking = {}) {
+  const sportShort = sports[booking.sportKey]?.short || (booking.sportName || "").trim().charAt(0).toUpperCase() || "P";
+  const facilityId = Number(booking.facilityId);
+  if (facilityId) return `${sportShort}${facilityId}`;
+  const courtNumber = String(booking.courtName || booking.facilityName || "").match(/\d+/)?.[0];
+  return courtNumber ? `${sportShort}${courtNumber}` : sportShort;
+}
+
+function getBookingAmountStatusLabel(booking = {}) {
+  return booking.paymentStatus === "Paid" ? "Paid" : "Due";
+}
+
+async function findBookingByToken(bookingToken) {
+  const token = String(bookingToken || "").trim();
+  if (!token || !firebaseReady) return null;
+  const tokenField = token.length > 12 ? "confirmationToken" : "bookingToken";
+
+  if (firebaseSdkReady) {
+    const snapshot = await bookingsRef.where(tokenField, "==", token).limit(1).get();
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    return { docId: doc.id, ...doc.data() };
+  }
+
+  if (firebaseRestReady) {
+    const matches = await runFirestoreRestCollectionQuery("Bookings", {
+      where: {
+        fieldFilter: {
+          field: { fieldPath: tokenField },
+          op: "EQUAL",
+          value: { stringValue: token },
+        },
+      },
+      limit: 1,
+    });
+    if (!matches.length) return null;
+    const document = matches[0].document;
+    return { docId: document.name.split("/").pop(), ...fromFirestoreFields(document.fields || {}) };
+  }
+
+  return null;
+}
+
+function renderConfirmationCard(booking) {
+  $("#confirmationId").textContent = booking.bookingId || "-";
+  $("#verificationCode").textContent = booking.bookingToken || "-";
+  $("#confirmationAmount").textContent = formatCurrency(booking.amount || 0);
+  if ($("#confirmationAmountStatus")) $("#confirmationAmountStatus").textContent = `Amount ${getBookingAmountStatusLabel(booking)}`;
+  $("#confirmationDetails").innerHTML = `
+    <div class="admin-booking-half"><small>Name</small><strong>${booking.name || "-"}</strong></div>
+    <div class="admin-booking-half"><small>Mobile</small><strong>${booking.phoneNumber || "-"}</strong></div>
+    <div class="admin-booking-court"><small>Sport</small><strong>${getBookingCourtBadge(booking)}</strong></div>
+    <div><small>Date</small><strong>${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}</strong></div>
+    <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime || "-"} - ${booking.endTime || "-"}`}</strong></div>
+  `;
+}
+
+function showConfirmationExpired(message = "This booking confirmation link has expired.") {
+  const messageElement = $("#publicConfirmMessage");
+  if (messageElement) {
+    messageElement.hidden = false;
+    messageElement.textContent = message;
+  }
+  const ticket = $("#publicConfirmTicket");
+  if (ticket) ticket.hidden = true;
+  const mark = $(".success-mark");
+  if (mark) {
+    mark.textContent = "!";
+    mark.classList.add("expired");
+  }
+  const title = $(".public-confirm-card h2");
+  if (title) title.innerHTML = "LINK<em>EXPIRED.</em>";
+}
+
+async function renderPublicBookingConfirmation() {
+  const token = new URLSearchParams(window.location.search).get("token");
+  const messageElement = $("#publicConfirmMessage");
+  const ticket = $("#publicConfirmTicket");
+
+  if (!token) {
+    showConfirmationExpired("Booking token missing. Please use the confirmation link sent to you.");
+    return;
+  }
+
+  try {
+    const booking = await findBookingByToken(token);
+    if (!booking || booking.status === "Cancelled") {
+      showConfirmationExpired("This booking confirmation link has expired.");
+      return;
+    }
+    renderConfirmationCard(booking);
+    if (messageElement) {
+      messageElement.textContent = "";
+      messageElement.hidden = true;
+    }
+    $$(".confirmationPaymentNote").forEach((paymentNote) => {
+      paymentNote.hidden = booking.paymentStatus === "Paid";
+    });
+    if (ticket) ticket.hidden = false;
+  } catch (error) {
+    console.error(error);
+    showConfirmationExpired("This booking confirmation link has expired.");
+  }
+}
+
+function openAdminBookingModal(booking) {
+  const modal = $("#adminBookingModal");
+  const top = $("#adminBookingModalTop");
+  const summary = $("#adminBookingModalSummary");
+  if (!modal || !summary || !booking) return;
+
+  if (top) {
+    top.innerHTML = `
+      <div><small>Booking ID</small><strong>${booking.bookingId || "-"}</strong></div>
+      <div><small>Unique Code</small><strong class="code">${booking.bookingToken || "-"}</strong></div>
+    `;
+  }
+
+  summary.innerHTML = `
+    <div class="admin-booking-half"><small>Name</small><strong>${booking.name || "-"}</strong></div>
+    <div class="admin-booking-half"><small>Mobile</small><strong>${booking.phoneNumber || "-"}</strong></div>
+    <div class="admin-booking-court"><small>Sport</small><strong>${getBookingCourtBadge(booking)}</strong></div>
+    <div><small>Date</small><strong>${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}</strong></div>
+    <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime || "-"} - ${booking.endTime || "-"}`}</strong></div>
+    <div class="admin-booking-amount"><small>Amount ${getBookingAmountStatusLabel(booking)}</small><strong>${formatCurrency(booking.amount || 0)}</strong></div>
+  `;
+  renderAdminBookingModalActions(booking);
+  modal.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function getAdminBookingSlotMerge(booking, slotIndex) {
+  const slots = [...(booking?.slotIndexes || [])].sort((a, b) => a - b);
+  if (!slots.length || !slots.includes(slotIndex)) {
+    return { isStart: false, isContinuation: false, span: 1 };
+  }
+
+  const isStart = !slots.includes(slotIndex - 1);
+  let span = 1;
+  while (slots.includes(slotIndex + span)) span += 1;
+
+  return {
+    isStart,
+    isContinuation: !isStart,
+    span,
+  };
+}
+
+async function loadAdminCourtBookingsForRange() {
+  if (!firebaseSdkReady || !bookingsRef) return;
+  const adminDates = getAdminCourtDates();
+  const startDate = new Date(adminDates[0]);
+  const endDate = new Date(adminDates[adminDates.length - 1]);
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  const snapshot = await bookingsRef
+    .where("bookingDate", ">=", toFirestoreTimestamp(startDate))
+    .where("bookingDate", "<=", toFirestoreTimestamp(endDate))
+    .get();
+
+  const bookingMap = new Map(state.allBookings.map((booking) => [booking.docId || booking.bookingId, booking]));
+  snapshot.docs.forEach((doc) => {
+    bookingMap.set(doc.id, {
+      docId: doc.id,
+      ...doc.data(),
+    });
+  });
+  state.allBookings = Array.from(bookingMap.values());
+}
+
+function renderAdminCourtFilters() {
+  const sportOptions = $("#adminCourtSportOptions");
+  const dateScroller = $("#adminCourtDateScroller");
+  const startInput = $("#adminCourtStartDate");
+  const endInput = $("#adminCourtEndDate");
+  const adminDates = getAdminCourtDates();
+
+  if (startInput && endInput) {
+    startInput.value = state.adminCourtStartDate;
+    endInput.value = state.adminCourtEndDate;
+
+    if (!startInput.dataset.bound) {
+      startInput.dataset.bound = "true";
+      startInput.addEventListener("change", () => {
+        state.adminCourtStartDate = startInput.value;
+        state.adminCourtSelectedDate = 0;
+        renderAdminCourtBooking();
+        loadAdminCourtBookingsForRange().then(renderAdminCourtBooking).catch((error) => console.error(error));
+      });
+    }
+
+    if (!endInput.dataset.bound) {
+      endInput.dataset.bound = "true";
+      endInput.addEventListener("change", () => {
+        state.adminCourtEndDate = endInput.value;
+        state.adminCourtSelectedDate = 0;
+        renderAdminCourtBooking();
+        loadAdminCourtBookingsForRange().then(renderAdminCourtBooking).catch((error) => console.error(error));
+      });
+    }
+  }
+
+  if (sportOptions) {
+    sportOptions.innerHTML = Object.entries(sports)
+      .map(
+        ([key, sport]) => `
+      <button class="sport-button ${state.selectedSport === key ? "active" : ""}" data-admin-sport="${key}" type="button">
+        <span class="sport-icon">${sport.short}</span>
+        <span><strong>${sport.name}</strong><small>${sport.count} ${sport.unit.toLowerCase()}${sport.count > 1 ? "s" : ""}</small></span>
+      </button>
+    `,
+      )
+      .join("");
+
+    $$("[data-admin-sport]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.selectedSport = button.dataset.adminSport;
+        clearSelection();
+        renderAdminCourtBooking();
+      });
+    });
+  }
+
+  if (dateScroller) {
+    dateScroller.style.setProperty("--admin-date-count", adminDates.length);
+    dateScroller.innerHTML = adminDates
+      .map((date, index) => {
+      const day = date.toLocaleDateString("en-IN", { weekday: "short" });
+      const month = date.toLocaleDateString("en-IN", { month: "short" });
+      const availabilityClass = getDateAvailabilityClassForDate(state.selectedSport, date);
+      return `
+      <button class="date-button ${availabilityClass} ${state.adminCourtSelectedDate === index ? "active" : ""}" data-admin-date="${index}" type="button">
+        <small>${day}</small>
+        <strong>${String(date.getDate()).padStart(2, "0")}</strong>
+        <em>${month}</em>
+        <i></i>
+      </button>
+    `;
+      })
+      .join("");
+
+    $$("[data-admin-date]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.adminCourtSelectedDate = Number(button.dataset.adminDate);
+        clearSelection();
+        renderAdminCourtBooking();
+      });
+    });
+  }
+}
+
+function renderAdminCourtBooking() {
+  const grid = $("#adminCourtBookingGrid");
+  if (!grid) return;
+
+  const sport = getSport();
+  const selectedDate = getSelectedAdminCourtDate();
+  const facilities = getFacilities();
+  const title = $("#adminCourtBookingTitle");
+
+  if (title) {
+    title.textContent = `${sport.name} - ${selectedDate.toLocaleDateString("en-IN", {
+      weekday: "long",
+      day: "2-digit",
+      month: "short",
+    })}`;
+  }
+
+  renderAdminCourtFilters();
+  grid.style.setProperty("--facility-count", facilities.length);
+  grid.style.gridTemplateRows = `73px repeat(${times.length}, var(--admin-booking-row-height))`;
+  grid.innerHTML = `
+    <div class="availability-corner" style="grid-column: 1; grid-row: 1;"><span>Time</span><small>30 min slots</small></div>
+    ${facilities
+      .map(
+        (facility, facilityIndex) => `
+      <div class="facility-heading" style="grid-column: ${facilityIndex + 2}; grid-row: 1;"><div class="facility-title-row"><span>${sport.short}${facility.id}</span></div></div>
+    `,
+      )
+      .join("")}
+    ${times
+      .map((time, slotIndex) => ({ time, slotIndex }))
+      .map(
+        ({ time, slotIndex }) => `
+      <div class="time-label" style="grid-column: 1; grid-row: ${slotIndex + 2};"><strong>${time}</strong><small>${minutesToTime(360 + (slotIndex + 1) * 30)}</small></div>
+      ${facilities
+        .map((facility, facilityIndex) => {
+          const booking = getAdminSlotBooking(facility.id, slotIndex);
+          const className = getAdminBookingSlotClass(booking);
+          const merge = getAdminBookingSlotMerge(booking, slotIndex);
+
+          if (merge.isContinuation) {
+            return "";
+          }
+
+          return `<button class="admin-booking-slot ${booking ? className : "available"} ${merge.isStart ? "merged-start" : ""}" data-admin-booking-id="${booking ? getAdminBookingId(booking) : ""}" style="grid-column: ${facilityIndex + 2}; grid-row: ${slotIndex + 2} / span ${merge.span};" type="button" ${booking ? "" : "disabled"}>
+            ${
+              booking
+                ? `<div class="admin-booking-slot-content"><span>${booking.name || "Guest"}</span><span>${booking.phoneNumber || "-"}</span><small>${booking.paymentStatus || "-"}</small></div>`
+                : `<span>Available</span>`
+            }
+          </button>`;
+        })
+        .join("")}
+    `,
+      )
+      .join("")}
+  `;
+
+  $$("#adminCourtBookingGrid [data-admin-booking-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const booking = getAdminBookingById(button.dataset.adminBookingId);
+      if (booking) openAdminBookingModal(booking);
+    });
+  });
+}
+
 function selectSlot(facilityId, slotIndex) {
+  hideBookingLimitModal();
+  if (isPastSlot(slotIndex) || isUnavailable(facilityId, slotIndex)) {
+    showMessage("This time slot cannot be selected.", "error");
+    renderAvailability();
+    return;
+  }
+
   const sport = getSport();
   const selected = [...state.selectedSlots].sort((a, b) => a - b);
 
@@ -508,16 +1219,42 @@ function selectSlot(facilityId, slotIndex) {
 }
 
 function showMessage(message, type = "info") {
+  if (!elements.slotMessage) return;
   elements.slotMessage.textContent = message;
   elements.slotMessage.className = `slot-message ${type}`;
   elements.slotMessage.hidden = false;
 }
 
 function hideMessage() {
+  if (!elements.slotMessage) return;
   elements.slotMessage.hidden = true;
 }
 
+function showBookingLimitModal(message) {
+  if (!elements.bookingLimitModal) return;
+  const messageElement = $("#bookingLimitMessage");
+  if (messageElement) messageElement.textContent = message;
+  clearTimeout(state.bookingLimitTimer);
+  elements.bookingLimitModal.hidden = false;
+  state.bookingLimitTimer = setTimeout(() => closeModal(elements.bookingLimitModal), 30000);
+}
+
+function hideBookingLimitModal() {
+  clearTimeout(state.bookingLimitTimer);
+  if (elements.bookingLimitModal) elements.bookingLimitModal.hidden = true;
+}
+
+function showAdminUpdateModal(message = "Booking updated.") {
+  if (!elements.adminUpdateModal) return;
+  const messageElement = $("#adminUpdateMessage");
+  if (messageElement) messageElement.textContent = message;
+  clearTimeout(state.adminUpdateTimer);
+  elements.adminUpdateModal.hidden = false;
+  state.adminUpdateTimer = setTimeout(() => closeModal(elements.adminUpdateModal), 5000);
+}
+
 function updateBookingBar() {
+  if (!elements.bookingBar) return;
   if (!state.selectedSlots.length) {
     elements.bookingBar.hidden = true;
     return;
@@ -534,6 +1271,7 @@ function updateBookingBar() {
 }
 
 function showDetailsModal() {
+  if (!elements.detailsModal || !elements.bookingForm) return;
   const selection = getSelection();
   if (state.selectedSlots.length < 2) {
     showMessage("Please select at least two consecutive 30-minute slots to make a 1-hour booking.", "error");
@@ -542,33 +1280,22 @@ function showDetailsModal() {
   }
 
   $("#modalSummary").innerHTML = `
+  <div class="modal-summary-court">
+    <small>Sport</small>
+    <strong>${selection.sport.short}${selection.facility.id}</strong>
+  </div>
   <div>
-  <small>Sport</small>
-  <strong style="display:block; margin:0; line-height:1.1;">
-    ${selection.sport.name}
-  </strong>
-  <strong style="display:block; margin:0; line-height:1.1;">
-    ${selection.facility.name}
-  </strong>
-</div>
-
-<div>
-  <small>Date & Time</small>
-  <strong style="display:block; margin:0; line-height:1.1;">
-    ${selection.date.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-    })}
-  </strong>
-  <strong style="display:block; margin:0; line-height:1.1;">
-    ${selection.startTime} - ${selection.endTime}
-  </strong>
-</div>
-
-<div>
-  <small>Duration</small>
-  <strong>${selection.durationLabel}</strong>
-</div>
+    <small>Date</small>
+    <strong>${selection.date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</strong>
+  </div>
+  <div>
+    <small>Time</small>
+    <strong class="modal-summary-time">${selection.startTime} - ${selection.endTime}</strong>
+  </div>
+  <div>
+    <small>Amount</small>
+    <strong>${formatCurrency(selection.price)}</strong>
+  </div>
   `;
   $("#playerOptions").innerHTML = selection.sport.players
     .map(
@@ -577,48 +1304,243 @@ function showDetailsModal() {
     )
     .join("");
 
-  elements.bookingForm.elements.name.value = state.currentProfile?.name || state.currentUser?.displayName || "";
-  elements.bookingForm.elements.mobile.value = state.currentProfile?.phoneNumber || "";
-  elements.bookingForm.elements.email.value = state.currentProfile?.email || state.currentUser?.email || "";
+  elements.bookingForm.elements.name.value = "";
+  elements.bookingForm.elements.mobile.value = "";
+  elements.bookingForm.elements.email.value = "";
+  setCustomerLookupStatus("");
+  hideBookingLimitModal();
+  setBookingSubmitDisabled(false);
   elements.detailsModal.hidden = false;
   document.body.style.overflow = "hidden";
 }
 
-function makeBookingReference() {
-  const random = crypto.getRandomValues(new Uint32Array(1))[0].toString().slice(0, 6);
-  return `BK${new Date().getFullYear()}${random}`;
+function makeAlphaNumericCode(length) {
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const numbers = "123456789";
+  const chars = `${letters}${numbers}`;
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  const code = Array.from(bytes, (byte) => chars[byte % chars.length]).join("");
+
+  if (!/[A-Z]/.test(code) || !/\d/.test(code)) {
+    return makeAlphaNumericCode(length);
+  }
+  return code;
+}
+
+async function bookingDocumentExists(bookingId) {
+  if (state.allBookings.some((booking) => String(booking.bookingId) === bookingId || String(booking.docId) === bookingId)) return true;
+  if (firebaseSdkReady) {
+    const doc = await bookingsRef.doc(bookingId).get();
+    return doc.exists;
+  }
+  if (firebaseRestReady) {
+    const doc = await getFirestoreRestDocument("Bookings", bookingId);
+    return Boolean(doc);
+  }
+  return false;
+}
+
+function getBookingMonthPrefix(bookingDate) {
+  return String((bookingDate.getMonth() + 1)).padStart(2, "0");
+}
+
+function getBookingIdPrefix(sportKey, bookingDate) {
+  return `${getBookingMonthPrefix(bookingDate)}${sports[sportKey]?.bookingCode || "A"}`;
+}
+
+async function fetchBookingsByIdPrefix(prefix) {
+  const localMatches = state.allBookings.filter((booking) => String(booking.bookingId || "").startsWith(prefix));
+
+  if (firebaseSdkReady) {
+    const snapshot = await bookingsRef
+      .where("bookingId", ">=", prefix)
+      .where("bookingId", "<", `${prefix}\uf8ff`)
+      .limit(1000)
+      .get();
+    const remoteMatches = snapshot.docs.map((doc) => ({ docId: doc.id, ...doc.data() }));
+    const byId = new Map([...localMatches, ...remoteMatches].map((booking) => [booking.docId || booking.bookingId, booking]));
+    return Array.from(byId.values());
+  }
+
+  if (firebaseRestReady) {
+    const matches = await runFirestoreRestCollectionQuery("Bookings", {
+      where: {
+        compositeFilter: {
+          op: "AND",
+          filters: [
+            {
+              fieldFilter: {
+                field: { fieldPath: "bookingId" },
+                op: "GREATER_THAN_OR_EQUAL",
+                value: { stringValue: prefix },
+              },
+            },
+            {
+              fieldFilter: {
+                field: { fieldPath: "bookingId" },
+                op: "LESS_THAN",
+                value: { stringValue: `${prefix}\uf8ff` },
+              },
+            },
+          ],
+        },
+      },
+      limit: 1000,
+    });
+    const remoteMatches = matches.map((item) => ({
+      docId: item.document.name.split("/").pop(),
+      ...fromFirestoreFields(item.document.fields || {}),
+    }));
+    const byId = new Map([...localMatches, ...remoteMatches].map((booking) => [booking.docId || booking.bookingId, booking]));
+    return Array.from(byId.values());
+  }
+
+  return localMatches;
+}
+
+async function bookingTokenExists(bookingToken) {
+  if (state.allBookings.some((booking) => String(booking.bookingToken) === bookingToken)) return true;
+  if (firebaseSdkReady) {
+    const snapshot = await bookingsRef.where("bookingToken", "==", bookingToken).limit(1).get();
+    return !snapshot.empty;
+  }
+  if (firebaseRestReady) {
+    const matches = await runFirestoreRestCollectionQuery("Bookings", {
+      where: {
+        fieldFilter: {
+          field: { fieldPath: "bookingToken" },
+          op: "EQUAL",
+          value: { stringValue: bookingToken },
+        },
+      },
+      limit: 1,
+    });
+    return matches.length > 0;
+  }
+  return false;
+}
+
+async function makeUniqueAlphaNumericCode(length, existsCheck) {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const code = makeAlphaNumericCode(length);
+    if (!(await existsCheck(code))) return code;
+  }
+  throw new Error(`Could not generate a unique ${length}-character code. Please try again.`);
+}
+
+async function makeBookingReference(sportKey, bookingDate) {
+  const monthPrefix = getBookingMonthPrefix(bookingDate);
+  const bookingIdPrefix = getBookingIdPrefix(sportKey, bookingDate);
+  const existingBookings = await fetchBookingsByIdPrefix(monthPrefix);
+  const highestSequence = existingBookings.reduce((highest, booking) => {
+    const match = String(booking.bookingId || "").match(new RegExp(`^${monthPrefix}[ABC](\\d{4})$`));
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0);
+
+  for (let sequence = highestSequence + 1; sequence <= 9999; sequence += 1) {
+    const bookingId = `${bookingIdPrefix}${String(sequence).padStart(4, "0")}`;
+    if (!(await bookingDocumentExists(bookingId))) return bookingId;
+  }
+
+  throw new Error("Could not generate a booking ID for this month. Please try again.");
 }
 
 function makeVerificationCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(8));
-  return Array.from(bytes, (byte) => chars[byte % chars.length]).join("");
+  return makeUniqueAlphaNumericCode(5, bookingTokenExists);
+}
+
+function makeConfirmationToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 // WhatsApp Share Booking: generate the prefilled sharing URL from booking details.
 function buildWhatsAppShareUrl(booking) {
-  return `https://wa.me/?text=${encodeURIComponent(buildConfirmationMessage(booking))}`;
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(buildConfirmationMessage(booking))}`;
 }
 
 function buildConfirmationMessage(booking) {
+  const confirmationUrl = getBookingConfirmationUrl(booking);
   return [
     "Booking Confirmed",
     "",
-    `Name: ${booking.name}`,
-    `Phone: ${booking.phoneNumber}`,
-    `Email: ${booking.email}`,
-    `Sport: ${booking.sportName}`,
-    `Court: ${booking.courtName || booking.facilityName}`,
+    `Name: ${booking.name || "-"}`,
+    `Mobile: ${booking.phoneNumber || "-"}`,
+    `Sport: ${booking.sportName || "-"}`,
+    `Court: ${getBookingCourtBadge(booking)}`,
     `Date: ${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}`,
-    `Time: ${booking.timeSlot || `${booking.startTime} - ${booking.endTime}`}`,
-    `Booking ID: ${booking.bookingId}`,
-    `Booking Token: ${booking.bookingToken}`,
+    `Time: ${booking.timeSlot || `${booking.startTime || "-"} - ${booking.endTime || "-"}`}`,
+    `Amount: ${formatCurrency(booking.amount || 0)}`,
+    `Booking ID: ${booking.bookingId || "-"}`,
+    `Unique Code: ${booking.bookingToken || "-"}`,
+    "",
+    "Download confirmation:",
+    confirmationUrl,
   ].join("\n");
 }
 
-// Booking Confirmation Messaging: backend endpoints can later send SMS/WhatsApp from 8879961503.
+function getBookingConfirmationUrl(booking) {
+  const token = encodeURIComponent(booking.confirmationToken || booking.bookingToken || "");
+  const publicBaseUrl = (window.PADEL_PUBLIC_CONFIG?.baseUrl || window.location.origin).replace(/\/+$/, "");
+  return `${publicBaseUrl}/booking-confirm?token=${token}`;
+}
+
+function getBookingPdfFileName(booking) {
+  return `${booking.bookingId || "booking-confirmation"}.pdf`;
+}
+
+function getConfirmationCaptureElement() {
+  return $("#confirmationPdfContent") || $(".confirmation-modal");
+}
+
+async function createConfirmationPdfBlob(booking) {
+  if (!window.html2canvas || !window.jspdf?.jsPDF) {
+    throw new Error("PDF generator is still loading. Please try again in a moment.");
+  }
+
+  const target = getConfirmationCaptureElement();
+  if (!target) throw new Error("Confirmation ticket is not available.");
+
+  target.classList.add("pdf-capture");
+  let canvas;
+  try {
+    canvas = await html2canvas(target, {
+      backgroundColor: "#ffffff",
+      scale: Math.min(window.devicePixelRatio || 2, 3),
+      useCORS: true,
+      windowWidth: 900,
+    });
+  } finally {
+    target.classList.remove("pdf-capture");
+  }
+  const imageData = canvas.toDataURL("image/png");
+  const pdf = new window.jspdf.jsPDF({
+    orientation: "portrait",
+    unit: "pt",
+    format: "a4",
+  });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 28;
+  const imageWidth = pageWidth - margin * 2;
+  const imageHeight = (canvas.height * imageWidth) / canvas.width;
+  const fittedHeight = Math.min(imageHeight, pageHeight - margin * 2);
+
+  pdf.addImage(imageData, "PNG", margin, margin, imageWidth, fittedHeight);
+  return pdf.output("blob");
+}
+
+async function downloadConfirmationPdf(booking, button) {
+  window.open(getBookingConfirmationUrl(booking), "_blank", "noopener,noreferrer");
+}
+
+async function shareConfirmationOnWhatsApp(booking, button) {
+  window.open(buildWhatsAppShareUrl(booking), "_blank", "noopener,noreferrer");
+}
+
+// Booking Confirmation Messaging: backend endpoints can later send SMS/WhatsApp.
 function createMessageServices() {
-  const senderNumber = "8879961503";
+  const senderNumber = window.PADEL_MESSAGE_CONFIG?.senderNumber || "";
 
   return {
     sms: {
@@ -671,20 +1593,136 @@ if (window.PadelMessagingService) {
   };
 }
 
-// Booking Creation: persist linked user bookings in Firestore with unique IDs and tokens.
+function getBookingDurationMinutes(booking = {}) {
+  if (Array.isArray(booking.slotIndexes) && booking.slotIndexes.length) return booking.slotIndexes.length * 30;
+  if (booking.durationMinutes) return Number(booking.durationMinutes) || 0;
+  const match = String(booking.durationLabel || "").match(/([\d.]+)\s*(hour|hr|min)/i);
+  if (!match) return 0;
+  const value = Number(match[1]);
+  return /min/i.test(match[2]) ? value : value * 60;
+}
+
+async function fetchBookingsByPhone(phoneNumber) {
+  const localMatches = state.allBookings.filter((booking) => booking.phoneNumber === phoneNumber);
+
+  if (firebaseSdkReady) {
+    const snapshot = await bookingsRef.where("phoneNumber", "==", phoneNumber).limit(100).get();
+    const remoteMatches = snapshot.docs.map((doc) => ({ docId: doc.id, ...doc.data() }));
+    const byId = new Map([...localMatches, ...remoteMatches].map((booking) => [booking.docId || booking.bookingId, booking]));
+    return Array.from(byId.values());
+  }
+
+  if (firebaseRestReady) {
+    const matches = await runFirestoreRestCollectionQuery("Bookings", {
+      where: {
+        fieldFilter: {
+          field: { fieldPath: "phoneNumber" },
+          op: "EQUAL",
+          value: { stringValue: phoneNumber },
+        },
+      },
+      limit: 100,
+    });
+    const remoteMatches = matches.map((item) => ({
+      docId: item.document.name.split("/").pop(),
+      ...fromFirestoreFields(item.document.fields || {}),
+    }));
+    const byId = new Map([...localMatches, ...remoteMatches].map((booking) => [booking.docId || booking.bookingId, booking]));
+    return Array.from(byId.values());
+  }
+
+  return localMatches;
+}
+
+function getBookedMinutesInRange(bookings, start, end) {
+  return bookings.reduce((total, booking) => {
+    if (booking.status === "Cancelled") return total;
+    const bookingDate = timestampToDate(booking.bookingDate);
+    if (!bookingDate || Number.isNaN(bookingDate.getTime()) || bookingDate < start || bookingDate >= end) return total;
+    return total + getBookingDurationMinutes(booking);
+  }, 0);
+}
+
+function validateDailyBookingLimit(bookings, selection) {
+  const { start, end } = getDayRange(selection.date);
+  const bookedMinutes = getBookedMinutesInRange(bookings, start, end);
+  const remainingMinutes = Math.max(0, DAILY_BOOKING_LIMIT_MINUTES - bookedMinutes);
+
+  if (selection.durationMinutes <= remainingMinutes) return;
+
+  if (!remainingMinutes) {
+    throw new Error("You have reached the daily booking limit of 4 hours. You cannot book more time on this day.");
+  }
+
+  throw new Error(
+    `You have already booked ${formatDurationHours(bookedMinutes)} on this day. You can book only ${formatDurationHours(
+      remainingMinutes,
+    )} more on this day. Please reduce your selected time.`,
+  );
+}
+
+async function validateBookingTimeLimits(phoneNumber, selection) {
+  const bookings = await fetchBookingsByPhone(phoneNumber);
+
+  validateDailyBookingLimit(bookings, selection);
+
+  const { start, end } = getWeekRange(selection.date);
+  const bookedMinutes = getBookedMinutesInRange(bookings, start, end);
+  const remainingMinutes = Math.max(0, WEEKLY_BOOKING_LIMIT_MINUTES - bookedMinutes);
+
+  if (selection.durationMinutes <= remainingMinutes) return;
+
+  if (!remainingMinutes) {
+    throw new Error("You have reached the weekly booking limit of 10 hours. You cannot book more time this week.");
+  }
+
+  throw new Error(
+    `You have already booked ${formatDurationHours(bookedMinutes)} this week. You can book only ${formatDurationHours(
+      remainingMinutes,
+    )} more this week. Please reduce your selected time.`,
+  );
+}
+
+// Booking Creation: bookingToken is the visible code; confirmationToken is the private link token.
 async function confirmBooking(formData, submitButton) {
-  setButtonLoading(submitButton, true, "Saving...");
+  const mobileDigits = getMobileDigits(formData.get("mobile"));
+  const name = formData.get("name").trim();
+  const email = formData.get("email").trim();
+
+  if (state.customerLookupLoading) {
+    showAlert("Please wait while we check the mobile number.", "info");
+    return;
+  }
+  if (mobileDigits.length !== 10) {
+    showAlert("Please enter a valid 10 digit mobile number.", "error");
+    elements.bookingForm.elements.mobile.focus();
+    return;
+  }
+  if (!name) {
+    showAlert("Please enter customer name.", "error");
+    elements.bookingForm.elements.name.focus();
+    return;
+  }
+  if (!isValidOptionalEmail(email)) {
+    showAlert("Please enter a valid email address or leave it blank.", "error");
+    elements.bookingForm.elements.email.focus();
+    return;
+  }
+
+  hideBookingLimitModal();
+  setButtonLoading(submitButton, true, "Checking...");
 
   try {
     const selection = getSelection();
-    const bookingId = makeBookingReference();
-    const bookingToken = makeVerificationCode();
-    const players = formData.get("players");
+    const phoneNumber = `+91${mobileDigits}`;
+    await validateBookingTimeLimits(phoneNumber, selection);
+    setButtonLoading(submitButton, true, "Saving...");
     const bookingDate = toBookingDate(selection);
-    const name = formData.get("name").trim();
-    const email = formData.get("email").trim();
-    const phoneNumber = formData.get("mobile").trim();
-    const customerId = makeCustomerId(email, phoneNumber);
+    const bookingId = await makeBookingReference(state.selectedSport, bookingDate);
+    const bookingToken = await makeVerificationCode();
+    const confirmationToken = makeConfirmationToken();
+    const players = formData.get("players");
+    const customerId = makeCustomerId("", phoneNumber);
     const createdAt = firebaseSdkReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString();
     const customer = {
       customerId,
@@ -697,6 +1735,7 @@ async function confirmBooking(formData, submitButton) {
     const booking = {
       bookingId,
       bookingToken,
+      confirmationToken,
       userId: null,
       customerId,
       name,
@@ -719,6 +1758,7 @@ async function confirmBooking(formData, submitButton) {
       durationLabel: selection.durationLabel,
       amount: selection.price,
       players: Number(players),
+      ...makeBookingSearchFields({ bookingId, bookingToken, name }),
     };
 
     if (firebaseSdkReady) {
@@ -731,43 +1771,38 @@ async function confirmBooking(formData, submitButton) {
       state.userBookings.unshift({ ...booking, createdAt: new Date().toISOString() });
       state.allBookings.unshift({ ...booking, createdAt: new Date().toISOString() });
     }
+    if (firebaseSdkReady || firebaseRestReady) {
+      state.userBookings.unshift({ ...booking, docId: bookingId, createdAt: new Date().toISOString() });
+      state.allBookings.unshift({ ...booking, docId: bookingId, createdAt: new Date().toISOString() });
+    }
 
     const smsResult = await messageServices.sms.sendBookingConfirmation(booking).catch((error) => ({ ok: false, error }));
     const whatsappResult = await messageServices.whatsapp.sendBookingConfirmation(booking).catch((error) => ({ ok: false, error }));
     showConfirmation(booking);
     renderUserDashboard();
+    renderDates();
     renderAdminDashboard();
     renderAvailability();
-    showAlert(
-      smsResult.ok || whatsappResult.ok
-        ? "Booking saved and confirmation message queued."
-        : "Booking saved. Messaging endpoints are not configured yet.",
-      smsResult.ok || whatsappResult.ok ? "success" : "info",
-    );
+    // showAlert(
+    //   smsResult.ok || whatsappResult.ok
+    //     ? "Booking saved and confirmation message queued."
+    //     : "Booking saved. Messaging endpoints are not configured yet.",
+    //   smsResult.ok || whatsappResult.ok ? "success" : "info",
+    // );
   } catch (error) {
-    showAlert(error.message || "Could not create booking. Please try again.", "error");
+    const message = error.message || "Could not create booking. Please try again.";
+    if (message.includes("booking limit") || message.includes("this week") || message.includes("this day")) showBookingLimitModal(message);
+    else showAlert(message, "error");
   } finally {
     setButtonLoading(submitButton, false);
   }
 }
 
 function showConfirmation(booking) {
-  $("#confirmationId").textContent = booking.bookingId;
-  $("#verificationCode").textContent = booking.bookingToken;
-  $("#confirmationAmount").textContent = formatCurrency(booking.amount);
-  $("#confirmationDetails").innerHTML = `
-    <div><small>Name</small><strong>${booking.name}</strong></div>
-    <div><small>Phone</small><strong>${booking.phoneNumber}</strong></div>
-    <div><small>Email</small><strong>${booking.email}</strong></div>
-    <div><small>Sport</small><strong>${booking.sportName}</strong></div>
-    <div><small>Court</small><strong>${booking.courtName || booking.facilityName}</strong></div>
-    <div><small>Date</small><strong>${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}</strong></div>
-    <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime} - ${booking.endTime}`}</strong></div>
-    <div><small>Booking ID</small><strong>${booking.bookingId}</strong></div>
-    <div><small>Booking Token</small><strong>${booking.bookingToken}</strong></div>
-  `;
-  $("#whatsappButton").href = buildWhatsAppShareUrl(booking);
-  $("#downloadButton").onclick = () => downloadConfirmation(buildConfirmationMessage(booking));
+  if (!elements.confirmationModal || !elements.bookingForm) return;
+  renderConfirmationCard(booking);
+  $("#downloadButton").onclick = () => downloadConfirmationPdf(booking, $("#downloadButton"));
+  $("#whatsappButton").onclick = () => shareConfirmationOnWhatsApp(booking, $("#whatsappButton"));
   elements.detailsModal.hidden = true;
   elements.confirmationModal.hidden = false;
   elements.bookingBar.hidden = true;
@@ -775,33 +1810,35 @@ function showConfirmation(booking) {
   clearSelection();
 }
 
-function downloadConfirmation(content) {
-  const blob = new Blob([content], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${$("#confirmationId").textContent}.txt`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
 function closeModal(modal) {
+  if (!modal) return;
+  if (modal === elements.bookingLimitModal) clearTimeout(state.bookingLimitTimer);
+  if (modal === elements.adminUpdateModal) clearTimeout(state.adminUpdateTimer);
   modal.hidden = true;
-  if (elements.detailsModal.hidden && elements.confirmationModal.hidden && elements.authModal.hidden) {
+  if ([elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].every((item) => !item || item.hidden)) {
     document.body.style.overflow = "";
   }
 }
 
 // Authentication System: admin login only; customers book without accounts.
-function openAuthModal() {
+function prepareAuthForm() {
+  if (!elements.authForm) return;
   elements.authForm.dataset.mode = "admin";
-  $("#authTitle").innerHTML = "ADMIN<br><em>LOGIN.</em>";
-  $("#authSubmit").textContent = "Login";
-  $("#authNameField").hidden = true;
-  $("#authPhoneField").hidden = true;
+  if ($("#authTitle")) $("#authTitle").innerHTML = "ADMIN<br><em>LOGIN.</em>";
+  if ($("#authSubmit")) $("#authSubmit").textContent = "Login";
+  if ($("#authNameField")) $("#authNameField").hidden = true;
+  if ($("#authPhoneField")) $("#authPhoneField").hidden = true;
   elements.authForm.elements.name.required = false;
   elements.authForm.elements.phoneNumber.required = false;
-  $("#authToggleText").textContent = "Admin access only.";
-  $("#authToggle").hidden = true;
+  if ($("#authToggleText")) $("#authToggleText").textContent = "Admin access only.";
+  if ($("#authToggle")) $("#authToggle").hidden = true;
+}
+
+function openAuthModal() {
+  if (!elements.authModal || !elements.authForm) {
+    return;
+  }
+  prepareAuthForm();
   elements.authModal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -823,6 +1860,7 @@ async function handleAuthSubmit(event) {
       if (state.currentProfile?.role !== "admin") throw new Error("Admin access is restricted.");
       updateAuthUI();
       closeModal(elements.authModal);
+      navigateToAdmin(true);
       showAlert("Admin logged in successfully.");
       return;
     }
@@ -836,6 +1874,7 @@ async function handleAuthSubmit(event) {
       throw new Error("Admin access is restricted.");
     }
     closeModal(elements.authModal);
+    navigateToAdmin(true);
     showAlert("Admin logged in successfully.");
   } catch (error) {
     if (String(error?.message || "").includes("Admin access is restricted")) {
@@ -937,15 +1976,56 @@ async function loadUserProfile(user) {
 function updateAuthUI() {
   const loggedIn = Boolean(state.currentUser);
   const isAdmin = state.currentProfile?.role === "admin";
-  $("#loginButton").hidden = isAdmin;
-  $("#registerButton").hidden = true;
-  $("#logoutButton").hidden = !loggedIn;
-  $("#adminPanelButton").hidden = !loggedIn || !isAdmin;
-  $("#accountName").hidden = !loggedIn;
-  $("#accountName").textContent = loggedIn ? state.currentProfile?.name || state.currentUser.email : "";
+  if ($("#loginButton")) $("#loginButton").hidden = isAdmin;
+  if ($("#registerButton")) $("#registerButton").hidden = true;
+  if ($("#logoutButton")) $("#logoutButton").hidden = !loggedIn;
+  if ($("#adminPanelButton")) $("#adminPanelButton").hidden = !loggedIn || !isAdmin;
+  if ($("#accountName")) {
+    $("#accountName").hidden = !loggedIn;
+    $("#accountName").textContent = loggedIn ? state.currentProfile?.name || state.currentUser.email : "";
+  }
 }
 
-// Firestore Live Data: admins see and manage every booking.
+function isAdminRoute() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return document.body.dataset.page === "admin" || path === "/admin" || path === "/admin.html" || path === "/booking";
+}
+
+function isLoginRoute() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return document.body.dataset.page === "login" || path === "/login" || path === "/login.html";
+}
+
+function isBookingConfirmationRoute() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return document.body.dataset.page === "booking-confirm" || path === "/booking-confirm";
+}
+
+function setRoute(path, replace = false) {
+  if (window.location.pathname === path) return;
+  const method = replace ? "replaceState" : "pushState";
+  window.history[method]({}, "", path);
+}
+
+function showAdminLoginRoute() {
+  state.mode = "admin-login";
+  if (elements.playerView) elements.playerView.hidden = true;
+  if (elements.adminView) elements.adminView.hidden = true;
+  if (elements.userDashboard) elements.userDashboard.hidden = true;
+  if ($("footer")) $("footer").hidden = true;
+  if (elements.bookingBar) elements.bookingBar.hidden = true;
+  openAuthModal();
+}
+
+function redirectToHome() {
+  window.location.replace("/");
+}
+
+function redirectToLogin() {
+  window.location.replace("/login");
+}
+
+// Firestore Booking Snapshot: fetch once so admin pages do not poll in the background.
 function subscribeToBookings() {
   if (!firebaseSdkReady) {
     renderAvailability();
@@ -954,35 +2034,100 @@ function subscribeToBookings() {
 
   if (window.unsubscribeAdminBookings) {
     window.unsubscribeAdminBookings();
+    window.unsubscribeAdminBookings = null;
   }
 
-  window.unsubscribeAdminBookings = bookingsRef.onSnapshot(
-    (snapshot) => {
-      state.allBookings = snapshot.docs.map((doc) => ({
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(dates[dates.length - 1]);
+  endDate.setHours(23, 59, 59, 999);
+
+  bookingsRef
+    .where("bookingDate", ">=", toFirestoreTimestamp(startDate))
+    .where("bookingDate", "<=", toFirestoreTimestamp(endDate))
+    .get()
+    .then((snapshot) => {
+      backfillAdminSearchFields(snapshot);
+        state.allBookings = snapshot.docs.map((doc) => ({
         docId: doc.id,
         ...doc.data(),
       }));
 
+      renderDates();
       renderAvailability();
-
-      if (state.currentProfile?.role === "admin") {
-        renderAdminDashboard();
-      }
-    },
-    (error) => {
+      renderAdminCourtBooking();
+    })
+    .catch((error) => {
       console.error(error);
-    }
-  );
+    });
 }
 
 function showView(view) {
   state.mode = view;
-  elements.playerView.hidden = view !== "player";
-  elements.adminView.hidden = view !== "admin";
-  elements.userDashboard.hidden = view !== "user";
-  $("footer").hidden = view === "admin" || view === "user";
-  elements.bookingBar.hidden = true;
+  if (elements.playerView) elements.playerView.hidden = view !== "player";
+  if (elements.adminView) elements.adminView.hidden = view !== "admin";
+  if (elements.userDashboard) elements.userDashboard.hidden = view !== "user";
+  if ($("footer")) $("footer").hidden = view === "admin" || view === "user" || view === "confirmation";
+  if (elements.bookingBar) elements.bookingBar.hidden = true;
+  if (view === "player" && window.location.hash) {
+    const target = $(window.location.hash);
+    if (target) {
+      setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+      return;
+    }
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderRoute({ replace = false, showDenied = false } = {}) {
+  if (isBookingConfirmationRoute()) {
+    showView("confirmation");
+    renderPublicBookingConfirmation();
+    return;
+  }
+
+  if (isAdminRoute()) {
+    if (state.currentProfile?.role === "admin") {
+      showView("admin");
+      renderAdminDashboard();
+      return;
+    }
+
+    redirectToLogin();
+    if (showDenied) showAlert("Admin login is required to access this page.", "error");
+    return;
+  }
+
+  if (isLoginRoute()) {
+    if (state.currentProfile?.role === "admin") {
+      navigateToAdmin(true);
+      return;
+    }
+    return;
+  }
+
+  showView("player");
+  if (replace) setRoute("/", true);
+}
+
+function navigateToHome(replace = false) {
+  if (isAdminRoute()) {
+    window.location.assign("/");
+    return;
+  }
+
+  setRoute("/", replace);
+  renderRoute({ replace });
+}
+
+function navigateToAdmin(replace = false) {
+  if (!isAdminRoute()) {
+    window.location.assign("/booking");
+    return;
+  }
+
+  setRoute("/booking", replace);
+  renderRoute();
 }
 
 function renderStatusPill(value) {
@@ -990,8 +2135,418 @@ function renderStatusPill(value) {
   return `<span class="status-pill ${className}">${value || "Unknown"}</span>`;
 }
 
+function renderBookingActions(booking) {
+  const id = booking.docId || booking.bookingId;
+  const actions = [];
+
+  if (booking.paymentStatus !== "Paid" && booking.status !== "Cancelled") {
+    actions.push(["paid", "Paid"]);
+  }
+
+  if (booking.status !== "Cancelled") {
+    actions.push(["cancelled", "Cancel"]);
+  }
+
+  return actions.length
+    ? actions.map(([action, label]) => `<button data-action="${action}" data-id="${id}" type="button">${label}</button>`).join("")
+    : `<span class="empty-actions">No actions</span>`;
+}
+
+function resetAdminBookingPager() {
+  state.adminBookingPage = 1;
+  state.adminBookingPages = [];
+  state.adminBookingQueryKey = "";
+  state.adminBookingTotal = 0;
+}
+
+function getAdminSearchField(term) {
+  const value = term.trim();
+  if (/^bk/i.test(value) || /^(?=.*[a-z])(?=.*\d)[a-z0-9]{7}$/i.test(value)) return "bookingIdSearch";
+  if (/^(?=.*[a-z])(?=.*\d)[a-z0-9]{5}$/i.test(value)) return "bookingTokenSearch";
+  return "nameSearch";
+}
+
+function makeBookingSearchFields({ bookingId, bookingToken, name }) {
+  return {
+    bookingIdSearch: String(bookingId || "").toLowerCase(),
+    bookingTokenSearch: String(bookingToken || "").toLowerCase(),
+    nameSearch: String(name || "").toLowerCase(),
+  };
+}
+
+function makePrefixEnd(value) {
+  return `${value}\uf8ff`;
+}
+
+function getTodayStart() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function getCurrentBookingCutoff() {
+  return new Date();
+}
+
+function getMonthStart() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+function getMonthEnd() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
+function serializeAdminBooking(bookingDoc) {
+  return {
+    docId: bookingDoc.id,
+    ...bookingDoc.data(),
+  };
+}
+
+function backfillAdminSearchFields(snapshot) {
+  if (!firebaseSdkReady || state.currentProfile?.role !== "admin" || state.adminSearchBackfillDone) return;
+  state.adminSearchBackfillDone = true;
+  snapshot.docs.forEach((doc) => {
+    const booking = doc.data();
+    if (booking.bookingIdSearch && booking.bookingTokenSearch && booking.nameSearch) return;
+    doc.ref.update(makeBookingSearchFields(booking)).catch((error) => console.warn("Could not backfill booking search fields", error));
+  });
+}
+
+function getAdminQueryKey() {
+  return state.adminBookingSearch.trim().toLowerCase();
+}
+
+function matchesAdminBookingSearch(booking, searchTerm) {
+  if (!searchTerm) return true;
+  return [booking.bookingId, booking.bookingToken, booking.name].some((value) =>
+    String(value || "").toLowerCase().includes(searchTerm),
+  );
+}
+
+function showAdminTableLoading() {
+  const table = $("#adminBookingTable");
+  if (!table) return;
+  table.innerHTML = `<tr><td colspan="8"><p class="empty-state">Loading bookings...</p></td></tr>`;
+}
+
+async function getFirestoreQueryCount(query) {
+  if (typeof query.count === "function") {
+    const snapshot = await query.count().get();
+    return snapshot.data().count;
+  }
+
+  const snapshot = await query.get();
+  return snapshot.size;
+}
+
+async function fetchAdminBookingTotal() {
+  const queryKey = getAdminQueryKey();
+
+  if (queryKey) {
+    const field = getAdminSearchField(queryKey);
+    return getFirestoreQueryCount(bookingsRef.orderBy(field).startAt(queryKey).endAt(makePrefixEnd(queryKey)));
+  }
+
+  const cutoff = toFirestoreTimestamp(getCurrentBookingCutoff());
+  const [upcomingCount, pastCount] = await Promise.all([
+    getFirestoreQueryCount(bookingsRef.where("bookingDate", ">=", cutoff).orderBy("bookingDate", "asc")),
+    getFirestoreQueryCount(bookingsRef.where("bookingDate", "<", cutoff).orderBy("bookingDate", "desc")),
+  ]);
+  return upcomingCount + pastCount;
+}
+
+async function fetchAdminRevenueForRange(startDate, endDate) {
+  const snapshot = await bookingsRef
+    .where("bookingDate", ">=", toFirestoreTimestamp(startDate))
+    .where("bookingDate", "<=", toFirestoreTimestamp(endDate))
+    .get();
+
+  return snapshot.docs
+    .map((doc) => doc.data())
+    .filter((booking) => booking.status !== "Cancelled")
+    .reduce((total, booking) => total + Number(booking.amount || 0), 0);
+}
+
+async function fetchAdminMetrics(bookings) {
+  if (!firebaseSdkReady) {
+    const today = new Date();
+    const activeBookings = bookings.filter((booking) => booking.status !== "Cancelled");
+    return [
+      ["Total Bookings", bookings.length],
+      ["Checked-In Bookings", bookings.filter((booking) => booking.status === "Checked-In").length],
+      ["Cancelled Bookings", bookings.filter((booking) => booking.status === "Cancelled").length],
+      ["Paid Bookings", bookings.filter((booking) => booking.paymentStatus === "Paid").length],
+      ["Unpaid Bookings", bookings.filter((booking) => booking.paymentStatus === "Unpaid").length],
+      [
+        "Expected Revenue Today",
+        formatCurrency(
+          activeBookings
+            .filter((booking) => timestampToDate(booking.bookingDate)?.toDateString() === today.toDateString())
+            .reduce((total, booking) => total + Number(booking.amount || 0), 0),
+        ),
+      ],
+      [
+        "Expected Revenue This Month",
+        formatCurrency(
+          activeBookings
+            .filter((booking) => {
+              const bookingDate = timestampToDate(booking.bookingDate);
+              return bookingDate && bookingDate.getMonth() === today.getMonth() && bookingDate.getFullYear() === today.getFullYear();
+            })
+            .reduce((total, booking) => total + Number(booking.amount || 0), 0),
+        ),
+      ],
+    ];
+  }
+
+  const todayStart = getTodayStart();
+  const todayEnd = new Date(todayStart);
+  todayEnd.setHours(23, 59, 59, 999);
+  const [total, checkedIn, cancelled, paid, unpaid, expectedToday, expectedMonth] = await Promise.all([
+    getFirestoreQueryCount(bookingsRef),
+    getFirestoreQueryCount(bookingsRef.where("status", "==", "Checked-In")),
+    getFirestoreQueryCount(bookingsRef.where("status", "==", "Cancelled")),
+    getFirestoreQueryCount(bookingsRef.where("paymentStatus", "==", "Paid")),
+    getFirestoreQueryCount(bookingsRef.where("paymentStatus", "==", "Unpaid")),
+    fetchAdminRevenueForRange(todayStart, todayEnd),
+    fetchAdminRevenueForRange(getMonthStart(), getMonthEnd()),
+  ]);
+
+  return [
+    ["Total Bookings", total],
+    ["Checked-In Bookings", checkedIn],
+    ["Cancelled Bookings", cancelled],
+    ["Paid Bookings", paid],
+    ["Unpaid Bookings", unpaid],
+    ["Expected Revenue Today", formatCurrency(expectedToday)],
+    ["Expected Revenue This Month", formatCurrency(expectedMonth)],
+  ];
+}
+
+function renderAdminPaginationControls(totalItems) {
+  const pagination = $("#adminBookingPagination");
+  if (!pagination) return;
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / ADMIN_BOOKINGS_PAGE_SIZE));
+  state.adminBookingPage = Math.min(Math.max(state.adminBookingPage, 1), totalPages);
+  const pageStart = totalItems ? (state.adminBookingPage - 1) * ADMIN_BOOKINGS_PAGE_SIZE + 1 : 0;
+  const pageEnd = Math.min(state.adminBookingPage * ADMIN_BOOKINGS_PAGE_SIZE, totalItems);
+
+  if (!totalItems) {
+    pagination.innerHTML = "";
+    pagination.hidden = true;
+    return;
+  }
+
+  pagination.hidden = false;
+  const pageButtons = getPaginationPages(state.adminBookingPage, totalPages)
+    .map((page) =>
+      page === "..."
+        ? `<span class="pagination-ellipsis">...</span>`
+        : `<button class="${page === state.adminBookingPage ? "active" : ""}" data-page="${page}" type="button">${page}</button>`,
+    )
+    .join("");
+
+  pagination.innerHTML = `
+    <span class="pagination-summary">Showing ${pageStart}-${pageEnd} of ${totalItems} bookings</span>
+    <div class="pagination-controls">
+      <button data-page="${state.adminBookingPage - 1}" type="button" ${state.adminBookingPage === 1 ? "disabled" : ""}>Prev</button>
+      ${pageButtons}
+      <button data-page="${state.adminBookingPage + 1}" type="button" ${state.adminBookingPage === totalPages ? "disabled" : ""}>Next</button>
+    </div>
+  `;
+
+  $$("#adminBookingPagination [data-page]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      state.adminBookingPage = Number(button.dataset.page);
+      await renderAdminDashboard({ showLoading: true });
+    });
+  });
+}
+
+async function fetchAdminSearchPage(previousPage) {
+  const queryKey = getAdminQueryKey();
+  const field = getAdminSearchField(queryKey);
+  let query = bookingsRef.orderBy(field).startAt(queryKey).endAt(makePrefixEnd(queryKey)).limit(ADMIN_BOOKINGS_PAGE_SIZE + 1);
+  if (previousPage?.lastDoc) query = query.startAfter(previousPage.lastDoc);
+
+  const snapshot = await query.get();
+  const docs = snapshot.docs.slice(0, ADMIN_BOOKINGS_PAGE_SIZE);
+  return {
+    rows: docs.map(serializeAdminBooking),
+    lastDoc: docs[docs.length - 1] || previousPage?.lastDoc || null,
+    hasNextPage: snapshot.docs.length > ADMIN_BOOKINGS_PAGE_SIZE,
+    mode: "search",
+  };
+}
+
+async function fetchAdminChronologicalPage(previousPage) {
+  let rows = [];
+  let upcomingCursor = previousPage?.upcomingCursor || null;
+  let pastCursor = previousPage?.pastCursor || null;
+  let mode = previousPage?.mode || "upcoming";
+  let hasNextPage = false;
+  const cutoff = toFirestoreTimestamp(getCurrentBookingCutoff());
+
+  if (mode === "upcoming") {
+    let upcomingQuery = bookingsRef
+      .where("bookingDate", ">=", cutoff)
+      .orderBy("bookingDate", "asc")
+      .limit(ADMIN_BOOKINGS_PAGE_SIZE + 1);
+    if (upcomingCursor) upcomingQuery = upcomingQuery.startAfter(upcomingCursor);
+
+    const upcomingSnapshot = await upcomingQuery.get();
+    const upcomingDocs = upcomingSnapshot.docs.slice(0, ADMIN_BOOKINGS_PAGE_SIZE);
+    rows = upcomingDocs.map(serializeAdminBooking);
+    upcomingCursor = upcomingDocs[upcomingDocs.length - 1] || upcomingCursor;
+    hasNextPage = upcomingSnapshot.docs.length > ADMIN_BOOKINGS_PAGE_SIZE;
+
+    if (!hasNextPage && rows.length < ADMIN_BOOKINGS_PAGE_SIZE) {
+      mode = "past";
+    }
+  }
+
+  if (mode === "past" && rows.length < ADMIN_BOOKINGS_PAGE_SIZE) {
+    const remaining = ADMIN_BOOKINGS_PAGE_SIZE - rows.length;
+    let pastQuery = bookingsRef
+      .where("bookingDate", "<", cutoff)
+      .orderBy("bookingDate", "desc")
+      .limit(remaining + 1);
+    if (pastCursor) pastQuery = pastQuery.startAfter(pastCursor);
+
+    const pastSnapshot = await pastQuery.get();
+    const pastDocs = pastSnapshot.docs.slice(0, remaining);
+    rows = [...rows, ...pastDocs.map(serializeAdminBooking)];
+    pastCursor = pastDocs[pastDocs.length - 1] || pastCursor;
+    hasNextPage = pastSnapshot.docs.length > remaining;
+  }
+
+  return { rows, upcomingCursor, pastCursor, hasNextPage, mode };
+}
+
+async function ensureAdminFirestorePage(pageNumber) {
+  const queryKey = getAdminQueryKey();
+  if (state.adminBookingQueryKey !== queryKey) {
+    state.adminBookingPages = [];
+    state.adminBookingQueryKey = queryKey;
+  }
+
+  while (state.adminBookingPages.length < pageNumber) {
+    const previousPage = state.adminBookingPages[state.adminBookingPages.length - 1];
+    if (previousPage && !previousPage.hasNextPage) break;
+    const nextPage = queryKey ? await fetchAdminSearchPage(previousPage) : await fetchAdminChronologicalPage(previousPage);
+    if (!nextPage.rows.length) {
+      if (state.adminBookingPages.length === 0) state.adminBookingPages.push(nextPage);
+      break;
+    }
+    state.adminBookingPages.push(nextPage);
+  }
+
+  return state.adminBookingPages[pageNumber - 1] || { rows: [], hasNextPage: false };
+}
+
+function getBookingSortDate(booking) {
+  const bookingDate = timestampToDate(booking.bookingDate);
+  if (bookingDate && !Number.isNaN(bookingDate.getTime())) return bookingDate;
+  const createdDate = timestampToDate(booking.createdAt);
+  return createdDate && !Number.isNaN(createdDate.getTime()) ? createdDate : new Date(0);
+}
+
+function isPastBooking(booking) {
+  const bookingDate = getBookingSortDate(booking);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return bookingDate < today;
+}
+
+function sortAdminBookings(bookings) {
+  return [...bookings].sort((a, b) => {
+    const aPast = isPastBooking(a);
+    const bPast = isPastBooking(b);
+    if (aPast !== bPast) return aPast ? 1 : -1;
+
+    const aTime = getBookingSortDate(a).getTime();
+    const bTime = getBookingSortDate(b).getTime();
+    return aPast ? bTime - aTime : aTime - bTime;
+  });
+}
+
+function getPaginationPages(currentPage, totalPages) {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  const pages = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) pages.push("...");
+  for (let page = start; page <= end; page += 1) pages.push(page);
+  if (end < totalPages - 1) pages.push("...");
+  pages.push(totalPages);
+  return pages;
+}
+
+function renderAdminPagination(totalItems) {
+  const pagination = $("#adminBookingPagination");
+  if (!pagination) return;
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / ADMIN_BOOKINGS_PAGE_SIZE));
+  state.adminBookingPage = Math.min(Math.max(state.adminBookingPage, 1), totalPages);
+  const pageStart = totalItems ? (state.adminBookingPage - 1) * ADMIN_BOOKINGS_PAGE_SIZE + 1 : 0;
+  const pageEnd = Math.min(state.adminBookingPage * ADMIN_BOOKINGS_PAGE_SIZE, totalItems);
+
+  if (!totalItems) {
+    pagination.innerHTML = "";
+    pagination.hidden = true;
+    return;
+  }
+
+  pagination.hidden = false;
+  const pageButtons = getPaginationPages(state.adminBookingPage, totalPages)
+    .map((page) =>
+      page === "..."
+        ? `<span class="pagination-ellipsis">...</span>`
+        : `<button class="${page === state.adminBookingPage ? "active" : ""}" data-page="${page}" type="button">${page}</button>`,
+    )
+    .join("");
+
+  pagination.innerHTML = `
+    <span class="pagination-summary">Showing ${pageStart}-${pageEnd} of ${totalItems} bookings</span>
+    <div class="pagination-controls">
+      <button data-page="${state.adminBookingPage - 1}" type="button" ${state.adminBookingPage === 1 ? "disabled" : ""}>Prev</button>
+      ${pageButtons}
+      <button data-page="${state.adminBookingPage + 1}" type="button" ${state.adminBookingPage === totalPages ? "disabled" : ""}>Next</button>
+    </div>
+  `;
+
+  $$("#adminBookingPagination [data-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.adminBookingPage = Number(button.dataset.page);
+      renderAdminDashboard({ showLoading: true });
+    });
+  });
+}
+
+function renderAdminGreeting() {
+  const dateElement = $("#adminCurrentDate");
+  const greetingElement = $("#adminGreeting");
+  if (!dateElement || !greetingElement) return;
+
+  const now = new Date();
+  const hour = now.getHours();
+  dateElement.textContent = now.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
+  greetingElement.textContent = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
+}
+
 // User Dashboard: profile, history, status, payment state, and share action.
 function renderUserDashboard() {
+  if (!$("#userProfileCard") || !$("#userBookingsList")) return;
   const profile = state.currentProfile;
   $("#userProfileCard").innerHTML = profile
     ? `
@@ -1022,41 +2577,18 @@ function renderUserDashboard() {
 }
 
 // Admin Dashboard: overview cards and booking table actions backed by Firestore updates.
-function renderAdminDashboard() {
+async function renderAdminDashboard({ showLoading = false } = {}) {
+  const metricsElement = $("#adminMetrics");
+  const bookingTable = $("#adminBookingTable");
+  if (!metricsElement) return;
   const bookings = state.allBookings;
-  const today = new Date();
-  const activeBookings = bookings.filter((booking) => booking.status !== "Cancelled");
   const searchTerm = state.adminBookingSearch.trim().toLowerCase();
   const filteredBookings = searchTerm
-    ? bookings.filter((booking) =>
-        [booking.bookingId, booking.bookingToken, booking.name].some((value) =>
-          String(value || "").toLowerCase().includes(searchTerm),
-        ),
-      )
+    ? bookings.filter((booking) => matchesAdminBookingSearch(booking, searchTerm))
     : bookings;
-  const checkedIn = bookings.filter((booking) => booking.status === "Checked-In").length;
-  const cancelled = bookings.filter((booking) => booking.status === "Cancelled").length;
-  const paid = bookings.filter((booking) => booking.paymentStatus === "Paid").length;
-  const unpaid = bookings.filter((booking) => booking.paymentStatus === "Unpaid").length;
-  const expectedToday = activeBookings
-    .filter((booking) => timestampToDate(booking.bookingDate)?.toDateString() === today.toDateString())
-    .reduce((total, booking) => total + Number(booking.amount || 0), 0);
-  const expectedMonth = activeBookings
-    .filter((booking) => {
-      const bookingDate = timestampToDate(booking.bookingDate);
-      return bookingDate && bookingDate.getMonth() === today.getMonth() && bookingDate.getFullYear() === today.getFullYear();
-    })
-    .reduce((total, booking) => total + Number(booking.amount || 0), 0);
+  const metricRows = await fetchAdminMetrics(bookings);
 
-  $("#adminMetrics").innerHTML = [
-    ["Total Bookings", bookings.length],
-    ["Checked-In Bookings", checkedIn],
-    ["Cancelled Bookings", cancelled],
-    ["Paid Bookings", paid],
-    ["Unpaid Bookings", unpaid],
-    ["Expected Revenue Today", formatCurrency(expectedToday)],
-    ["Expected Revenue This Month", formatCurrency(expectedMonth)],
-  ]
+  metricsElement.innerHTML = metricRows
     .map(
       ([label, value]) => `
       <article><div><span>${label}</span></div><strong>${value}</strong><small>Live from Firestore</small></article>
@@ -1064,32 +2596,91 @@ function renderAdminDashboard() {
     )
     .join("");
 
-  $("#adminBookingTable").innerHTML = filteredBookings.length
-    ? filteredBookings
+  renderAdminCourtBooking();
+
+  if (!bookingTable) return;
+
+  let visibleBookings = [];
+  let totalItems = filteredBookings.length;
+
+  if (firebaseSdkReady) {
+    const requestId = ++state.adminBookingRequestId;
+    state.adminBookingLoading = true;
+    if (showLoading) showAdminTableLoading();
+
+    try {
+      const latestTotal = await fetchAdminBookingTotal();
+      if (state.adminBookingTotal !== latestTotal) {
+        state.adminBookingPages = [];
+        state.adminBookingTotal = latestTotal;
+      }
+      totalItems = state.adminBookingTotal;
+      const totalPages = Math.max(1, Math.ceil(totalItems / ADMIN_BOOKINGS_PAGE_SIZE));
+      state.adminBookingPage = Math.min(Math.max(state.adminBookingPage, 1), totalPages);
+      const page = await ensureAdminFirestorePage(state.adminBookingPage);
+      if (requestId !== state.adminBookingRequestId) return;
+      if (!page.rows.length && state.adminBookingPage > 1) {
+        state.adminBookingPage = Math.max(1, state.adminBookingPages.length);
+        const fallbackPage = state.adminBookingPages[state.adminBookingPage - 1] || { rows: [], hasNextPage: false };
+        visibleBookings = fallbackPage.rows;
+      } else {
+      visibleBookings = page.rows;
+      }
+      const expectedRowsOnPage = Math.max(0, Math.min(ADMIN_BOOKINGS_PAGE_SIZE, totalItems - (state.adminBookingPage - 1) * ADMIN_BOOKINGS_PAGE_SIZE));
+      visibleBookings = visibleBookings.slice(0, expectedRowsOnPage);
+    } catch (error) {
+      if (requestId !== state.adminBookingRequestId) return;
+      bookingTable.innerHTML = `<tr><td colspan="8"><p class="empty-state">${error.message || "Could not load bookings."}</p></td></tr>`;
+      renderAdminPaginationControls(0);
+      return;
+    } finally {
+      if (requestId === state.adminBookingRequestId) state.adminBookingLoading = false;
+    }
+  } else {
+    const sortedBookings = sortAdminBookings(filteredBookings);
+    const totalPages = Math.max(1, Math.ceil(sortedBookings.length / ADMIN_BOOKINGS_PAGE_SIZE));
+    state.adminBookingPage = Math.min(Math.max(state.adminBookingPage, 1), totalPages);
+    const pageStart = (state.adminBookingPage - 1) * ADMIN_BOOKINGS_PAGE_SIZE;
+    visibleBookings = sortedBookings.slice(pageStart, pageStart + ADMIN_BOOKINGS_PAGE_SIZE);
+    totalItems = sortedBookings.length;
+  }
+
+  bookingTable.innerHTML = visibleBookings.length
+    ? visibleBookings
         .map(
           (booking) => `
       <tr>
         <td>${booking.bookingId}</td>
         <td>${booking.bookingToken}</td>
-        <td>${booking.sportName || "-"}</td>
-        <td>${booking.courtName || booking.facilityName || "-"}</td>
-        <td>${booking.name}</td>
-        <td>${booking.phoneNumber}</td>
+        <td>
+          <div class="table-detail-stack">
+            <strong>${booking.sportName || "-"}</strong>
+            <span>${booking.courtName || booking.facilityName || "-"}</span>
+          </div>
+        </td>
+        <td>
+          <div class="table-detail-stack">
+            <strong>${booking.name || "-"}</strong>
+            <span>${booking.phoneNumber || "-"}</span>
+            <span>${booking.email || "-"}</span>
+          </div>
+        </td>
         <td>${formatBookingDate(booking.bookingDate)}</td>
         <td>${renderStatusPill(booking.status)}</td>
         <td>${renderStatusPill(booking.paymentStatus)}</td>
         <td>
           <div class="table-actions">
-            <button data-action="checked-in" data-id="${booking.docId || booking.bookingId}" type="button">Checked-In</button>
-            <button data-action="paid" data-id="${booking.docId || booking.bookingId}" type="button">Paid</button>
-            <button data-action="cancelled" data-id="${booking.docId || booking.bookingId}" type="button">Cancelled</button>
+            ${renderBookingActions(booking)}
           </div>
         </td>
       </tr>
     `,
         )
         .join("")
-    : `<tr><td colspan="11"><p class="empty-state">No bookings found.</p></td></tr>`;
+    : `<tr><td colspan="8"><p class="empty-state">No bookings found.</p></td></tr>`;
+
+  if (firebaseSdkReady) renderAdminPaginationControls(totalItems);
+  else renderAdminPagination(totalItems);
 
   $$("#adminBookingTable [data-action]").forEach((button) => {
     button.addEventListener("click", () => updateBookingFromAdmin(button.dataset.id, button.dataset.action, button));
@@ -1102,24 +2693,27 @@ async function updateBookingFromAdmin(docId, action, button) {
     return;
   }
 
-  const updates =
-    action === "checked-in"
-      ? { status: "Checked-In" }
-      : action === "paid"
-        ? { paymentStatus: "Paid" }
-        : { status: "Cancelled" };
+  const updates = action === "paid" ? { paymentStatus: "Paid" } : { status: "Cancelled" };
 
   setButtonLoading(button, true, "Saving...");
   try {
     if (firebaseSdkReady) {
       await bookingsRef.doc(docId).update(updates);
+      state.allBookings = state.allBookings.map((booking) => ((booking.docId || booking.bookingId) === docId ? { ...booking, ...updates } : booking));
+      state.userBookings = state.userBookings.map((booking) => ((booking.docId || booking.bookingId) === docId ? { ...booking, ...updates } : booking));
+      resetAdminBookingPager();
+      renderDates();
+      renderAdminCourtBooking();
+      await renderAdminDashboard({ showLoading: true });
     } else {
       state.allBookings = state.allBookings.map((booking) => (booking.bookingId === docId ? { ...booking, ...updates } : booking));
       state.userBookings = state.userBookings.map((booking) => (booking.bookingId === docId ? { ...booking, ...updates } : booking));
+      renderDates();
+      renderAdminCourtBooking();
       renderAdminDashboard();
       renderUserDashboard();
     }
-    showAlert("Booking updated.");
+    showAdminUpdateModal("Booking updated.");
   } catch (error) {
     showAlert(error.message || "Could not update booking.", "error");
   } finally {
@@ -1130,56 +2724,83 @@ async function updateBookingFromAdmin(docId, action, button) {
 // Admin Route Protection: block non-admins from rendering the admin panel.
 function protectAdminRoute() {
   if (state.currentProfile?.role !== "admin") {
-    showView("player");
+    navigateToHome(true);
     showAlert("Admin access is restricted.", "error");
     return false;
   }
   return true;
 }
 
+function setAdminSidebarOpen(open) {
+  document.body.classList.toggle("admin-sidebar-open", open);
+  const menuButtons = [$("#adminMenuButton"), $("#adminHeaderMenuButton")].filter(Boolean);
+  const backdrop = $("#adminSidebarBackdrop");
+  menuButtons.forEach((button) => button.setAttribute("aria-expanded", String(open)));
+  if (backdrop) backdrop.hidden = !open;
+}
+
+async function logoutCurrentUser() {
+  if (firebaseSdkReady) await auth.signOut();
+  state.currentUser = null;
+  state.currentProfile = null;
+  state.userBookings = [];
+  setAdminSidebarOpen(false);
+  updateAuthUI();
+  navigateToHome(true);
+  showAlert("Logged out.");
+}
+
 function bindEvents() {
-  $("#continueButton").addEventListener("click", showDetailsModal);
-  $("#newBookingButton").addEventListener("click", () => {
-    showView("player");
-    setTimeout(() => $("#book").scrollIntoView({ behavior: "smooth" }), 100);
+  elements.adminBookingModal = $("#adminBookingModal");
+  prepareAuthForm();
+  $("#continueButton")?.addEventListener("click", showDetailsModal);
+  $("#newBookingButton")?.addEventListener("click", () => {
+    navigateToHome();
+    setTimeout(() => $("#book")?.scrollIntoView({ behavior: "smooth" }), 100);
   });
-  $("#loginButton").addEventListener("click", () => openAuthModal());
-  $("#adminPanelButton").addEventListener("click", () => {
-    if (protectAdminRoute()) showView("admin");
+  $("#loginButton")?.addEventListener("click", () => openAuthModal());
+  $("#adminPanelButton")?.addEventListener("click", () => {
+    if (protectAdminRoute()) navigateToAdmin();
   });
-  $("#adminBookingSearch").addEventListener("input", (event) => {
+  $("#adminBookingSearch")?.addEventListener("input", (event) => {
     state.adminBookingSearch = event.target.value;
+    resetAdminBookingPager();
     renderAdminDashboard();
   });
-  $("#logoutButton").addEventListener("click", async () => {
-    if (firebaseSdkReady) await auth.signOut();
-    state.currentUser = null;
-    state.currentProfile = null;
-    state.userBookings = [];
-    updateAuthUI();
-    showView("player");
-    showAlert("Logged out.");
+  $("#bookingStateToggle")?.addEventListener("click", (event) => {
+    const isOpen = document.body.classList.toggle("states-open");
+    event.currentTarget.textContent = isOpen ? "Hide" : "Show State";
+    event.currentTarget.setAttribute("aria-expanded", String(isOpen));
   });
-  elements.authForm.addEventListener("submit", handleAuthSubmit);
+  $("#adminMenuButton")?.addEventListener("click", () => setAdminSidebarOpen(!document.body.classList.contains("admin-sidebar-open")));
+  $("#adminHeaderMenuButton")?.addEventListener("click", () => setAdminSidebarOpen(!document.body.classList.contains("admin-sidebar-open")));
+  $("#adminSidebarBackdrop")?.addEventListener("click", () => setAdminSidebarOpen(false));
+  $$("#adminSidebar [data-admin-nav]").forEach((link) => link.addEventListener("click", () => setAdminSidebarOpen(false)));
+  $("#logoutButton")?.addEventListener("click", logoutCurrentUser);
+  $("#adminSidebarLogout")?.addEventListener("click", logoutCurrentUser);
+  elements.authForm?.addEventListener("submit", handleAuthSubmit);
   $$(".modal-close, [data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal($(`#${button.dataset.close}`)));
   });
-  [elements.detailsModal, elements.confirmationModal, elements.authModal].forEach((modal) => {
+  [elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].filter(Boolean).forEach((modal) => {
     modal.addEventListener("click", (event) => {
       if (event.target === modal) closeModal(modal);
     });
   });
-  elements.bookingForm.addEventListener("submit", (event) => {
+  elements.bookingForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     confirmBooking(new FormData(elements.bookingForm), event.submitter);
   });
+  elements.bookingForm?.elements.mobile?.addEventListener("input", handleBookingMobileInput);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      [elements.confirmationModal, elements.detailsModal, elements.authModal].forEach((modal) => {
+      hideAppMessageModal();
+      [elements.confirmationModal, elements.bookingLimitModal, elements.detailsModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].filter(Boolean).forEach((modal) => {
         if (!modal.hidden) closeModal(modal);
       });
     }
   });
+  window.addEventListener("popstate", () => renderRoute({ showDenied: true }));
 }
 
 async function bootAuth() {
@@ -1188,6 +2809,7 @@ async function bootAuth() {
     subscribeToBookings();
     renderUserDashboard();
     renderAdminDashboard();
+    renderRoute({ showDenied: isAdminRoute() });
     return;
   }
 
@@ -1196,6 +2818,7 @@ async function bootAuth() {
     renderUserDashboard();
     subscribeToBookings();
     renderAdminDashboard();
+    renderRoute({ showDenied: isAdminRoute() });
     showAlert("Firebase config detected. Using REST fallback because Firebase SDK scripts did not load.", "info");
     return;
   }
@@ -1216,9 +2839,14 @@ async function bootAuth() {
       }
       updateAuthUI();
       subscribeToBookings();
+      renderRoute();
     } else {
       updateAuthUI();
-      showView("player");
+      if (isAdminRoute()) {
+        renderRoute({ showDenied: true });
+      } else {
+        renderRoute();
+      }
       renderUserDashboard();
       subscribeToBookings();
       renderAdminDashboard();
@@ -1230,6 +2858,7 @@ async function bootAuth() {
 renderSports();
 renderDates();
 renderAvailability();
+renderAdminGreeting();
 bindEvents();
 bootAuth();
 

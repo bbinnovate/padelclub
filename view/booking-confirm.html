@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0f18" />
+    <meta name="description" content="Padel Club booking confirmation." />
+    <title>Booking Confirmation | Padel Club</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="booking-confirm">
+    <div class="noise"></div>
+    <div class="alert-region" id="alertRegion" aria-live="polite" aria-atomic="true"></div>
+    <main class="public-confirm-page">
+      <section class="modal confirmation-modal public-confirm-card">
+        <div id="confirmationPdfContent">
+          <div class="success-mark">✓</div>
+          <p class="eyebrow dark centered"><span></span> Booking confirmation <span></span></p>
+          <h2>GAME<em>ON.</em></h2>
+          <p class="confirmation-sub">
+            Your booking is confirmed. <span class="confirmationPaymentNote">Pay when you Play.</span>
+          </p>
+          <p class="confirmation-sub" id="publicConfirmMessage">Loading booking details...</p>
+          <div class="ticket" id="publicConfirmTicket" hidden>
+            <div class="admin-booking-ticket-top">
+              <div><small>Booking ID</small><strong id="confirmationId">-</strong></div>
+              <div><small>Unique code</small><strong class="code" id="verificationCode">-</strong></div>
+            </div>
+            <div class="modal-summary admin-booking-summary" id="confirmationDetails"></div>
+            <div class="payment-row">
+              <img class="money-icon" src="/assets/money-icon.svg" alt="Money" />
+              <div>
+                <small id="confirmationAmountStatus">Amount due</small><strong id="confirmationAmount">₹0</strong>
+                <p class="confirmationPaymentNote">Pay when you Play.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="/config.js?v=guest-booking-2"></script>
+    <script src="/app.js?v=guest-booking-2"></script>
+  </body>
+</html>

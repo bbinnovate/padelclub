@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0f18" />
+    <meta name="description" content="Padel Club admin login." />
+    <title>Admin Login | Padel Club</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="login">
+    <div class="noise"></div>
+    <div class="alert-region" id="alertRegion" aria-live="polite" aria-atomic="true"></div>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Padel Club home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>PADEL<span>CLUB</span></span>
+      </a>
+      <nav class="desktop-nav" aria-label="Main navigation">
+        <a href="/#book">Book a space</a>
+        <a href="/#experience">The club</a>
+        <a href="/#gallery">Gallery</a>
+        <a href="/#pricing">Pricing</a>
+        <a href="/#faq">FAQ</a>
+      </nav>
+      <div class="topbar-actions">
+        <a class="mini-cta" href="/">Play now <span>↗</span></a>
+      </div>
+    </header>
+
+    <main class="login-page-shell">
+      <section class="modal auth-modal login-page-card">
+        <p class="eyebrow dark"><span></span> Admin access</p>
+        <h2 id="authTitle" style="margin-bottom: 0.5em;">ADMIN<br /><em>LOGIN.</em></h2>
+        <form id="authForm" data-mode="admin">
+          <label id="authNameField" hidden>Full name<input name="name" placeholder="e.g. Rohan Shah" autocomplete="name" /></label>
+          <label>Email address<input required name="email" type="email" placeholder="you@email.com" autocomplete="email" /></label>
+          <label>Password<input required name="password" type="password" minlength="6" placeholder="Minimum 6 characters" autocomplete="current-password" /></label>
+          <label id="authPhoneField" hidden>Mobile number<input name="phoneNumber" placeholder="+91 98765 43210" inputmode="tel" autocomplete="tel" /></label>
+          <button class="primary-cta form-submit" id="authSubmit" type="submit">Login</button>
+          <small class="form-note"><span id="authToggleText">Admin access only.</span> <button class="link-inline" id="authToggle" type="button" hidden>Register</button></small>
+        </form>
+      </section>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="/config.js?v=guest-booking-2"></script>
+    <script src="/messaging-service.js?v=guest-booking-2"></script>
+    <script src="/app.js?v=guest-booking-2"></script>
+  </body>
+</html>

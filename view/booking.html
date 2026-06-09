@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0f18" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="description" content="Multi-sport court and turf booking platform." />
+    <title>Booking Overview | Padel Club</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="admin" data-admin-active="booking">
+    <template id="adminPageContent">
+      <!-- <button
+        class="state-toggle-button"
+        id="bookingStateToggle"
+        type="button"
+        aria-controls="adminMetrics"
+        aria-expanded="false"
+      >
+        Show State
+      </button>
+      <div class="metric-grid admin-metric-grid" id="adminMetrics">
+        <article><div><span>Total Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Checked-In Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Cancelled Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Paid Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Unpaid Bookings</span></div><strong>...</strong><small>Live from Firestore</small></article>
+        <article><div><span>Expected Revenue Today</span></div><strong>...</strong><small>Excludes cancelled</small></article>
+        <article><div><span>Expected Revenue This Month</span></div><strong>...</strong><small>Excludes cancelled</small></article>
+      </div> -->
+
+      <div class="admin-date-range-filter admin-date-range-top">
+        <label><span>From</span><input id="adminCourtStartDate" type="date" /></label>
+        <label><span>To</span><input id="adminCourtEndDate" type="date" /></label>
+      </div>
+
+      <div class="pulse-banner">
+        <div><span class="pulse-icon">↗</span><p><small>Today at a glance</small><strong>Your multi-sport facility is running at 74% occupancy.</strong></p></div>
+        <span>22 sessions still to play</span>
+      </div>
+
+      <article class="admin-court-panel">
+        <div class="panel-heading admin-court-heading">
+          <div class="admin-court-title-row">
+            <div><small>Court Booking</small><h2 id="adminCourtBookingTitle">Court Booking</h2></div>
+          </div>
+          <div class="admin-court-filters">
+            <div class="sport-options admin-sport-options" id="adminCourtSportOptions"></div>
+            <div class="date-scroller admin-date-scroller" id="adminCourtDateScroller"></div>
+          </div>
+        </div>
+        <!-- <div class="admin-court-legend">
+          <span><i class="paid"></i>Paid</span>
+          <span><i class="checkedin"></i>Checked-In</span>
+          <span><i class="cancelled"></i>Cancelled</span>
+          <span><i class="unpaid"></i>Unpaid</span>
+        </div> -->
+        <div class="schedule-wrap admin-court-wrap" style="margin-top: 1em;">
+          <div class="availability-grid admin-court-booking-grid" id="adminCourtBookingGrid"></div>
+        </div>
+      </article>
+
+      <div class="admin-grid legacy-admin-grid">
+        <article class="schedule-panel">
+          <div class="panel-heading"><div><small>Live schedule</small><h2>Today's sports</h2></div><div><button>‹</button><b>Jun 04</b><button>›</button></div></div>
+          <div class="schedule-board" id="scheduleBoard"></div>
+        </article>
+        <article class="checkin-panel">
+          <div class="panel-heading"><div><small>Front desk</small><h2>Up next</h2></div><button class="link-button">View all →</button></div>
+          <div id="checkinList"></div>
+        </article>
+      </div>
+    </template>
+    <script src="/admin-layout-loader.js?v=guest-booking-2"></script>
+  </body>
+</html>
