@@ -121,7 +121,10 @@
           <div class="booking-controls">
             <div class="control-label">
               <span>02</span>
-              <div><small class="mobile-none">Choose a day</small><strong>Next 7 days</strong></div>
+              <div>
+                <small class="mobile-none">Choose a day</small
+                ><strong>Next 7 days</strong>
+              </div>
               <div class="legend">
                 <span><i class="available"></i>Available</span>
                 <span><i class="limited"></i>Limited</span>
@@ -149,7 +152,13 @@
             <div class="availability-grid" id="availabilityGrid"></div>
           </div>
           <div class="booking-rules-action">
-            <button class="primary-cta compact" id="bookingRulesButton" type="button">Court Booking Rules &amp; Regulations</button>
+            <button
+              class="primary-cta compact"
+              id="bookingRulesButton"
+              type="button"
+            >
+              Court Booking Rules &amp; Regulations
+            </button>
           </div>
         </div>
       </section>
@@ -351,10 +360,16 @@
       </section>
     </div>
 
-    <div class="modal-backdrop limit-modal-backdrop" id="bookingLimitModal" hidden>
+    <div
+      class="modal-backdrop limit-modal-backdrop"
+      id="bookingLimitModal"
+      hidden
+    >
       <section class="modal limit-modal">
         <button class="modal-close" data-close="bookingLimitModal">×</button>
-        <p class="eyebrow dark centered"><span></span> Booking limit <span></span></p>
+        <p class="eyebrow dark centered">
+          <span></span> Booking limit <span></span>
+        </p>
         <h2>LIMIT<em>REACHED.</em></h2>
         <p id="bookingLimitMessage"></p>
       </section>
@@ -402,40 +417,122 @@
           </div>
         </div>
         <div class="confirmation-actions">
-          <button class="outline-button" id="downloadButton" type="button">
-            Download Confirmation</button
-          ><button
-            class="primary-cta compact"
-            id="whatsappButton"
-            type="button"
-          >
+          <button class="primary-cta compact" id="whatsappButton" type="button">
             Share on WhatsApp
             <svg class="whatsapp-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M19.1 4.9A9.8 9.8 0 0 0 3 15.4L2 22l6.8-1a9.8 9.8 0 0 0 4.7 1.2h.1a9.8 9.8 0 0 0 5.5-17.3Zm-5.5 15.6h-.1a8.1 8.1 0 0 1-4.1-1.1l-.3-.2-4 .6.6-3.9-.2-.4a8.1 8.1 0 1 1 8.1 5Zm4.4-6.1c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.6.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1-.2-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.1-.2 0-.4.1-.5l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5s-.6-1.5-.8-2c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.2-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9.6.3 1.1.4 1.5.5.6.2 1.2.2 1.6.1.5-.1 1.4-.6 1.6-1.1.2-.5.2-1 .2-1.1-.1-.2-.2-.2-.4-.3Z" />
+              <path
+                d="M19.1 4.9A9.8 9.8 0 0 0 3 15.4L2 22l6.8-1a9.8 9.8 0 0 0 4.7 1.2h.1a9.8 9.8 0 0 0 5.5-17.3Zm-5.5 15.6h-.1a8.1 8.1 0 0 1-4.1-1.1l-.3-.2-4 .6.6-3.9-.2-.4a8.1 8.1 0 1 1 8.1 5Zm4.4-6.1c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.6.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1-.2-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.1-.2 0-.4.1-.5l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5s-.6-1.5-.8-2c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.2-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9.6.3 1.1.4 1.5.5.6.2 1.2.2 1.6.1.5-.1 1.4-.6 1.6-1.1.2-.5.2-1 .2-1.1-.1-.2-.2-.2-.4-.3Z"
+              />
             </svg>
+          </button>
+          <button class="outline-button" id="downloadButton" type="button">
+            View Confirmation
           </button>
         </div>
       </section>
     </div>
 
-    <div class="modal-backdrop booking-rules-backdrop" id="bookingRulesModal" hidden>
-      <section class="modal booking-rules-modal" aria-labelledby="bookingRulesTitle">
-        <button class="modal-close" data-close="bookingRulesModal" type="button">&times;</button>
+    <div
+      class="modal-backdrop booking-rules-backdrop"
+      id="bookingRulesModal"
+      hidden
+    >
+      <section
+        class="modal booking-rules-modal"
+        aria-labelledby="bookingRulesTitle"
+      >
+        <button
+          class="modal-close"
+          data-close="bookingRulesModal"
+          type="button"
+        >
+          &times;
+        </button>
         <p class="eyebrow dark"><span></span> Facility policies</p>
         <h2 id="bookingRulesTitle">BOOKING<em>RULES.</em></h2>
         <ol class="booking-rules-list">
-          <li><strong>Weekly Limit</strong><span>A user may book a maximum of 10 hours per week per sport.</span></li>
-          <li><strong>Daily Limit</strong><span>A user may book a maximum of 4 hours per day per sport.</span></li>
-          <li><strong>Payment Required</strong><span>All confirmed bookings must be paid for as per facility guidelines.</span></li>
-          <li><strong>Non-Payment = Blacklisting</strong><span>Unpaid bookings may result in account suspension or permanent blacklisting.</span></li>
-          <li><strong>No-Show Policy</strong><span>Repeated no-shows may lead to booking restrictions or account suspension.</span></li>
-          <li><strong>Cancellation Window</strong><span>Cancellations and reschedules are allowed up to 6 hours before the booking time.</span></li>
-          <li><strong>Booking Verification</strong><span>Players must present their booking confirmation or verification code at check-in.</span></li>
-          <li><strong>Play at Your Own Risk</strong><span>The facility is not responsible for injuries, accidents, loss, theft, or damage.</span></li>
-          <li><strong>Respect the Facility</strong><span>Misconduct, abuse, or damage to property may result in immediate removal and suspension.</span></li>
-          <li><strong>Accurate Details Only</strong><span>Users must provide valid contact information when making bookings.</span></li>
-          <li><strong>Time Slot Compliance</strong><span>Courts must be vacated at the end of the booked slot unless an extension is approved.</span></li>
-          <li><strong>Management Rights Reserved</strong><span>The facility may cancel bookings or suspend accounts in cases of misuse, policy violations, or operational requirements.</span></li>
+          <li>
+            <strong>Weekly Limit</strong
+            ><span
+              >A user may book a maximum of 10 hours per week per sport.</span
+            >
+          </li>
+          <li>
+            <strong>Daily Limit</strong
+            ><span
+              >A user may book a maximum of 4 hours per day per sport.</span
+            >
+          </li>
+          <li>
+            <strong>Payment Required</strong
+            ><span
+              >All confirmed bookings must be paid for as per facility
+              guidelines.</span
+            >
+          </li>
+          <li>
+            <strong>Non-Payment = Blacklisting</strong
+            ><span
+              >Unpaid bookings may result in account suspension or permanent
+              blacklisting.</span
+            >
+          </li>
+          <li>
+            <strong>No-Show Policy</strong
+            ><span
+              >Repeated no-shows may lead to booking restrictions or account
+              suspension.</span
+            >
+          </li>
+          <li>
+            <strong>Cancellation Window</strong
+            ><span
+              >Cancellations and reschedules are allowed up to 6 hours before
+              the booking time.</span
+            >
+          </li>
+          <li>
+            <strong>Booking Verification</strong
+            ><span
+              >Players must present their booking confirmation or verification
+              code at check-in.</span
+            >
+          </li>
+          <li>
+            <strong>Play at Your Own Risk</strong
+            ><span
+              >The facility is not responsible for injuries, accidents, loss,
+              theft, or damage.</span
+            >
+          </li>
+          <li>
+            <strong>Respect the Facility</strong
+            ><span
+              >Misconduct, abuse, or damage to property may result in immediate
+              removal and suspension.</span
+            >
+          </li>
+          <li>
+            <strong>Accurate Details Only</strong
+            ><span
+              >Users must provide valid contact information when making
+              bookings.</span
+            >
+          </li>
+          <li>
+            <strong>Time Slot Compliance</strong
+            ><span
+              >Courts must be vacated at the end of the booked slot unless an
+              extension is approved.</span
+            >
+          </li>
+          <li>
+            <strong>Management Rights Reserved</strong
+            ><span
+              >The facility may cancel bookings or suspend accounts in cases of
+              misuse, policy violations, or operational requirements.</span
+            >
+          </li>
         </ol>
       </section>
     </div>

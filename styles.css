@@ -2599,7 +2599,7 @@ footer > span {
 }
 .slot-cell.available,
 .admin-booking-slot.available {
-  background: #f3ffe9;
+  /* background: #f3ffe9; */
   color: #477d00;
 }
 .slot-cell.available span,
@@ -2608,7 +2608,7 @@ footer > span {
   place-self: center;
   padding: 4px 9px;
   border-radius: 999px;
-  background: #dcffbd;
+  /* background: #dcffbd; */
   color: #315f00;
   font-weight: 900;
 }
@@ -2792,11 +2792,11 @@ footer > span {
     min-width: 0;
   }
   .sport-button strong {
-    font-size: 13px;
+    font-size: 12px;
     line-height: 1.1;
   }
   .sport-button small {
-    font-size: 10px;
+    font-size: 9px;
     line-height: 1.15;
     letter-spacing: 0.2px;
   }
