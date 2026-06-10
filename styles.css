@@ -553,14 +553,14 @@ h2 em {
   margin-left: 5px;
 }
 .control-label > span {
-  width: 25px;
-  height: 25px;
+  width: 22px;
+  height: 22px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: var(--ink);
   color: var(--lime);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
 }
 .control-label div {
