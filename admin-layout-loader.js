@@ -3,9 +3,9 @@
     "https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js",
     "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js",
     "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js",
-    "/config.js?v=guest-booking-2",
-    "/messaging-service.js?v=guest-booking-2",
-    "/app.js?v=guest-booking-2",
+    "/config.js?v=guest-booking-3",
+    "/messaging-service.js?v=guest-booking-3",
+    "/app.js?v=guest-booking-3",
   ];
 
   function loadScript(src) {

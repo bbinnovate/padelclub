@@ -373,33 +373,39 @@ async function findCustomerByMobile(phoneNumber) {
     return null;
   }
 
+  const customerId = makeCustomerId("", phoneNumber);
+
   if (firebaseSdkReady) {
-    for (const collectionName of ["Customers", "Bookings"]) {
-      const snapshot = await db.collection(collectionName).where("phoneNumber", "==", phoneNumber).limit(1).get();
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        return { docId: doc.id, ...doc.data() };
-      }
+    const customerDoc = await db.collection("Customers").doc(customerId).get();
+    if (customerDoc.exists) {
+      return { docId: customerDoc.id, ...customerDoc.data() };
+    }
+
+    const snapshot = await db.collection("Bookings").where("phoneNumber", "==", phoneNumber).limit(1).get();
+    if (!snapshot.empty) {
+      const doc = snapshot.docs[0];
+      return { docId: doc.id, ...doc.data() };
     }
     return null;
   }
 
   if (firebaseRestReady) {
-    for (const collectionName of ["Customers", "Bookings"]) {
-      const matches = await runFirestoreRestCollectionQuery(collectionName, {
-        where: {
-          fieldFilter: {
-            field: { fieldPath: "phoneNumber" },
-            op: "EQUAL",
-            value: { stringValue: phoneNumber },
-          },
+    const customer = await getFirestoreRestDocument("Customers", customerId);
+    if (customer) return { docId: customerId, ...customer };
+
+    const matches = await runFirestoreRestCollectionQuery("Bookings", {
+      where: {
+        fieldFilter: {
+          field: { fieldPath: "phoneNumber" },
+          op: "EQUAL",
+          value: { stringValue: phoneNumber },
         },
-        limit: 1,
-      });
-      if (matches.length) {
-        const document = matches[0].document;
-        return { docId: document.name.split("/").pop(), ...fromFirestoreFields(document.fields || {}) };
-      }
+      },
+      limit: 1,
+    });
+    if (matches.length) {
+      const document = matches[0].document;
+      return { docId: document.name.split("/").pop(), ...fromFirestoreFields(document.fields || {}) };
     }
   }
 
@@ -2762,6 +2768,10 @@ function bindEvents() {
   $("#adminPanelButton")?.addEventListener("click", () => {
     if (protectAdminRoute()) navigateToAdmin();
   });
+  $("#bookingRulesButton")?.addEventListener("click", () => {
+    const modal = $("#bookingRulesModal");
+    if (modal) modal.hidden = false;
+  });
   $("#adminBookingSearch")?.addEventListener("input", (event) => {
     state.adminBookingSearch = event.target.value;
     resetAdminBookingPager();
@@ -2782,7 +2792,7 @@ function bindEvents() {
   $$(".modal-close, [data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal($(`#${button.dataset.close}`)));
   });
-  [elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].filter(Boolean).forEach((modal) => {
+  [elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal, $("#bookingRulesModal")].filter(Boolean).forEach((modal) => {
     modal.addEventListener("click", (event) => {
       if (event.target === modal) closeModal(modal);
     });
@@ -2795,7 +2805,7 @@ function bindEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       hideAppMessageModal();
-      [elements.confirmationModal, elements.bookingLimitModal, elements.detailsModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].filter(Boolean).forEach((modal) => {
+      [elements.confirmationModal, elements.bookingLimitModal, elements.detailsModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal, $("#bookingRulesModal")].filter(Boolean).forEach((modal) => {
         if (!modal.hidden) closeModal(modal);
       });
     }

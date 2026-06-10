@@ -65,6 +65,9 @@
         <div class="schedule-wrap admin-court-wrap" style="margin-top: 1em;">
           <div class="availability-grid admin-court-booking-grid" id="adminCourtBookingGrid"></div>
         </div>
+        <!-- <div class="booking-rules-action">
+          <button class="primary-cta compact" id="bookingRulesButton" type="button">Court Booking Rules &amp; Regulations</button>
+        </div> -->
       </article>
 
       <div class="admin-grid legacy-admin-grid">
@@ -77,7 +80,29 @@
           <div id="checkinList"></div>
         </article>
       </div>
+
+      <div class="modal-backdrop booking-rules-backdrop" id="bookingRulesModal" hidden>
+        <section class="modal booking-rules-modal" aria-labelledby="bookingRulesTitle">
+          <button class="modal-close" data-close="bookingRulesModal" type="button">&times;</button>
+          <p class="eyebrow dark"><span></span> Facility policies</p>
+          <h2 id="bookingRulesTitle">BOOKING<em>RULES.</em></h2>
+          <ol class="booking-rules-list">
+            <li><strong>Weekly Limit</strong><span>A user may book a maximum of 10 hours per week per sport.</span></li>
+            <li><strong>Daily Limit</strong><span>A user may book a maximum of 4 hours per day per sport.</span></li>
+            <li><strong>Payment Required</strong><span>All confirmed bookings must be paid for as per facility guidelines.</span></li>
+            <li><strong>Non-Payment = Blacklisting</strong><span>Unpaid bookings may result in account suspension or permanent blacklisting.</span></li>
+            <li><strong>No-Show Policy</strong><span>Repeated no-shows may lead to booking restrictions or account suspension.</span></li>
+            <li><strong>Cancellation Window</strong><span>Cancellations and reschedules are allowed up to 6 hours before the booking time.</span></li>
+            <li><strong>Booking Verification</strong><span>Players must present their booking confirmation or verification code at check-in.</span></li>
+            <li><strong>Play at Your Own Risk</strong><span>The facility is not responsible for injuries, accidents, loss, theft, or damage.</span></li>
+            <li><strong>Respect the Facility</strong><span>Misconduct, abuse, or damage to property may result in immediate removal and suspension.</span></li>
+            <li><strong>Accurate Details Only</strong><span>Users must provide valid contact information when making bookings.</span></li>
+            <li><strong>Time Slot Compliance</strong><span>Courts must be vacated at the end of the booked slot unless an extension is approved.</span></li>
+            <li><strong>Management Rights Reserved</strong><span>The facility may cancel bookings or suspend accounts in cases of misuse, policy violations, or operational requirements.</span></li>
+          </ol>
+        </section>
+      </div>
     </template>
-    <script src="/admin-layout-loader.js?v=guest-booking-2"></script>
+    <script src="/admin-layout-loader.js?v=guest-booking-3"></script>
   </body>
 </html>

@@ -553,14 +553,14 @@ h2 em {
   margin-left: 5px;
 }
 .control-label > span {
-  width: 33px;
-  height: 33px;
+  width: 25px;
+  height: 25px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: var(--ink);
   color: var(--lime);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
 }
 .control-label div {
@@ -1171,6 +1171,32 @@ h2 em {
 }
 #modalSummary {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 16px 22px;
+  gap: 0;
+}
+#modalSummary div {
+  min-height: 48px;
+  padding: 0 7px;
+  justify-items: start;
+  align-content: center;
+  text-align: left;
+}
+#modalSummary div:first-child {
+  padding-left: 0;
+}
+#modalSummary div:last-child {
+  padding-right: 0;
+}
+#modalSummary div + div::before {
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+}
+#modalSummary .modal-summary-court strong {
+  justify-self: start;
+}
+#modalSummary .modal-summary-time {
+  max-width: none;
 }
 .modal form {
   display: grid;
@@ -2216,11 +2242,25 @@ footer > span {
     gap: 5px;
     padding: 12px 8px;
   }
+  #modalSummary {
+    gap: 0;
+    padding: 12px;
+  }
+  #modalSummary div {
+    min-height: 52px;
+    padding: 0 10px;
+  }
+  #modalSummary div:first-child {
+    padding-left: 0;
+  }
+  #modalSummary div:last-child {
+    padding-right: 0;
+  }
   .modal-summary small {
     font-size: 10px;
   }
   .modal-summary strong {
-    font-size: 13px;
+    font-size: 11px;
   }
   .modal-summary-court strong {
     width: 45px;
@@ -2733,21 +2773,30 @@ footer > span {
     overflow-x: visible;
   }
   .sport-button {
-    min-height: 58px;
-    padding: 7px 5px;
-    gap: 5px;
+    min-height: 92px;
+    padding: 10px 5px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    text-align: center;
   }
   .sport-icon {
-    width: 36px;
-    height: 36px;
-    font-size: 13px;
+    width: 50px;
+    height: 50px;
+    font-size: 14px;
+  }
+  .sport-button > span:nth-child(2) {
+    justify-items: center;
+    gap: 3px;
+    min-width: 0;
   }
   .sport-button strong {
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1.1;
   }
   .sport-button small {
-    font-size: 8px;
+    font-size: 10px;
     line-height: 1.15;
     letter-spacing: 0.2px;
   }
@@ -3075,6 +3124,60 @@ body:not([data-admin-active="booking"]) .admin-date-range-top {
 }
 .admin-court-wrap {
   margin: 0 17px 17px;
+}
+.booking-rules-action {
+  padding: 0 17px 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+.booking-app .booking-rules-action {
+  padding: 0 28px 35px;
+}
+.booking-rules-modal {
+  width: min(720px, 100%);
+}
+.booking-rules-list {
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  counter-reset: booking-rules;
+}
+.booking-rules-list li {
+  counter-increment: booking-rules;
+  position: relative;
+  min-height: 58px;
+  padding: 12px 14px 12px 56px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  background: #f8f9f4;
+}
+.booking-rules-list li::before {
+  content: counter(booking-rules);
+  position: absolute;
+  left: 14px;
+  top: 13px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--ink);
+  color: var(--lime);
+  font-size: 12px;
+  font-weight: 900;
+}
+.booking-rules-list strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+.booking-rules-list span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 .admin-court-booking-grid {
   --admin-booking-row-height: 58px;
@@ -3752,6 +3855,22 @@ button.admin-booking-slot:not(:disabled):hover {
   .admin-court-wrap {
     margin: 0 10px 14px;
     max-height: 650px;
+  }
+  .booking-rules-action {
+    padding: 0 10px 14px;
+  }
+  .booking-rules-action .primary-cta {
+    width: 100%;
+  }
+  .booking-rules-modal h2 {
+    font-size: 38px;
+    letter-spacing: -2px;
+  }
+  .booking-rules-list {
+    gap: 8px;
+  }
+  .booking-rules-list li {
+    padding: 11px 12px 11px 50px;
   }
   .admin-court-booking-grid {
     --admin-booking-row-height: 48px;

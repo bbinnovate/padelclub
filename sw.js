@@ -1,4 +1,4 @@
-const CACHE_NAME = "padel-club-v8";
+const CACHE_NAME = "padel-club-v9";
 const APP_SHELL = [
   "./",
   "./admin-layout",
