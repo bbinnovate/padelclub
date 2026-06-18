@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Padel Club API
+  title: Jain Gymkhana API
   version: 1.0.0
   description: Versioned, mobile-ready contract shared by web and future Flutter clients.
 servers:

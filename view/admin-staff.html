@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0f18" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="description" content="Jain Gymkhana staff management." />
+    <title>Admin Staff | Jain Gymkhana</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="admin" data-admin-active="staff">
+    <template id="adminPageContent">
+      <article class="booking-table-panel">
+        <div class="panel-heading booking-header-row">
+          <div>
+            <small>Admin staff</small>
+            <h2>Staff Accounts</h2>
+          </div>
+          <button class="primary-cta compact" id="addStaffButton" type="button">+ Add new staff</button>
+        </div>
+        <div class="table-scroll">
+          <table class="booking-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adminStaffTable">
+              <tr><td colspan="5"><p class="empty-state">Loading staff...</p></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </template>
+    <script src="/admin-layout-loader.js?v=guest-booking-17"></script>
+  </body>
+</html>

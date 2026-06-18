@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b0f18" />
-    <meta name="description" content="Padel Club admin login." />
-    <title>Admin Login | Padel Club</title>
+    <meta name="description" content="Jain Gymkhana admin login." />
+    <title>Admin Login | Jain Gymkhana</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -18,9 +18,9 @@
     <div class="noise"></div>
     <div class="alert-region" id="alertRegion" aria-live="polite" aria-atomic="true"></div>
     <header class="topbar">
-      <a class="brand" href="/" aria-label="Padel Club home">
+      <a class="brand" href="/" aria-label="Jain Gymkhana home">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
-        <span>PADEL<span>CLUB</span></span>
+        <span>JAIN<span>GYMKHANA</span></span>
       </a>
       <nav class="desktop-nav" aria-label="Main navigation">
         <a href="/#book">Book a space</a>
@@ -41,7 +41,12 @@
         <form id="authForm" data-mode="admin">
           <label id="authNameField" hidden>Full name<input name="name" placeholder="e.g. Rohan Shah" autocomplete="name" /></label>
           <label>Email address<input required name="email" type="email" placeholder="you@email.com" autocomplete="email" /></label>
-          <label>Password<input required name="password" type="password" minlength="6" placeholder="Minimum 6 characters" autocomplete="current-password" /></label>
+          <label>Password
+            <span class="password-input-wrap">
+              <input required name="password" type="password" minlength="6" placeholder="Minimum 6 characters" autocomplete="current-password" />
+              <button class="password-toggle" data-password-toggle="login" type="button" aria-label="Show password"></button>
+            </span>
+          </label>
           <label id="authPhoneField" hidden>Mobile number<input name="phoneNumber" placeholder="+91 98765 43210" inputmode="tel" autocomplete="tel" /></label>
           <button class="primary-cta form-submit" id="authSubmit" type="submit">Login</button>
           <small class="form-note"><span id="authToggleText">Admin access only.</span> <button class="link-inline" id="authToggle" type="button" hidden>Register</button></small>
@@ -54,6 +59,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script src="/config.js?v=guest-booking-3"></script>
     <script src="/messaging-service.js?v=guest-booking-3"></script>
-    <script src="/app.js?v=guest-booking-3"></script>
+    <script src="/app.js?v=guest-booking-17"></script>
   </body>
 </html>

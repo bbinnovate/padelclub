@@ -1,9 +1,9 @@
 <div class="noise"></div>
 <div class="alert-region" id="alertRegion" aria-live="polite" aria-atomic="true"></div>
 <header class="topbar">
-  <a class="brand" href="/" aria-label="Padel Club home">
+  <a class="brand" href="/" aria-label="Jain Gymkhana home">
     <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
-    <span>PADEL<span>CLUB</span></span>
+    <span>JAIN<span>GYMKHANA</span></span>
   </a>
 
   <nav class="desktop-nav" aria-label="Main navigation">
@@ -28,10 +28,11 @@
 <main id="adminView" class="admin-shell" hidden>
   <div class="admin-sidebar-backdrop" id="adminSidebarBackdrop" hidden></div>
   <aside class="admin-sidebar" id="adminSidebar">
-    <a class="brand admin-brand" href="#"><span class="brand-mark"><i></i><i></i></span><span>PADEL<span>CLUB</span></span></a>
+    <a class="brand admin-brand" href="#"><span class="brand-mark"><i></i><i></i></span><span>JAIN<span>GYMKHANA</span></span></a>
     <nav>
       <a href="/admin" data-admin-nav="overview"><span>⌁</span>Overview</a>
       <a href="/booking" data-admin-nav="booking"><span>▦</span>Booking</a>
+      <a href="/admin-staff" data-admin-nav="staff" data-admin-only><span>◎</span>Admin Staff</a>
     </nav>
     <div class="sidebar-bottom">
       <button class="admin-sidebar-logout" id="adminSidebarLogout" type="button"><span>↪</span>Logout</button>
@@ -49,6 +50,92 @@
   </section>
 </main>
 
+<div class="booking-bar" id="bookingBar" hidden>
+  <div class="booking-bar-court">
+    <span id="barCourtBadge">P1</span>
+    <div>
+      <small id="barSport">Padel</small><strong id="barCourt">Court 1</strong>
+    </div>
+  </div>
+  <div class="booking-bar-details">
+    <div><small>Date</small><strong id="barDate">Thu, 04 Jun</strong></div>
+    <div><small>Time</small><strong id="barTime">7:00 PM - 8:00 PM</strong></div>
+    <div><small>Duration</small><strong id="barDuration">1 hour</strong></div>
+  </div>
+  <div class="booking-bar-total">
+    <div>
+      <small>Total amount</small><strong id="barPrice">&#8377;2,500</strong>
+    </div>
+    <button class="primary-cta compact" id="continueButton" type="button">Continue <span>&rarr;</span></button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="detailsModal" hidden>
+  <section class="modal">
+    <button class="modal-close" data-close="detailsModal" type="button">&times;</button>
+    <p class="eyebrow dark"><span></span> Almost there</p>
+    <h2>WHO'S<br /><em>PLAYING?</em></h2>
+    <div class="modal-summary" id="modalSummary"></div>
+    <form id="bookingForm" autocomplete="off">
+      <label class="mobile-field">Mobile number
+        <div class="phone-input">
+          <span class="phone-prefix">+91</span>
+          <input required name="mobile" placeholder="Enter mobile number" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" autocomplete="off" />
+          <span class="lookup-indicator" id="customerLookupIndicator" aria-hidden="true"></span>
+        </div>
+        <small class="lookup-status" id="customerLookupStatus" aria-live="polite"></small>
+      </label>
+      <label>Full name<input required name="name" placeholder="e.g. Rohan Shah" autocomplete="off" /></label>
+      <label>Email address (optional)<input name="email" type="email" placeholder="you@email.com" autocomplete="off" /></label>
+      <fieldset>
+        <legend></legend>
+        <div class="player-options" id="playerOptions"></div>
+      </fieldset>
+      <button class="primary-cta form-submit" type="submit">Confirm booking <span>&rarr;</span></button>
+      <small class="form-note">Book Now. Pay when you Play</small>
+    </form>
+  </section>
+</div>
+
+<div class="modal-backdrop limit-modal-backdrop" id="bookingLimitModal" hidden>
+  <section class="modal limit-modal">
+    <button class="modal-close" data-close="bookingLimitModal" type="button">&times;</button>
+    <p class="eyebrow dark centered"><span></span> Booking limit <span></span></p>
+    <h2>LIMIT<em>REACHED.</em></h2>
+    <p id="bookingLimitMessage"></p>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="confirmationModal" hidden>
+  <section class="modal confirmation-modal">
+    <button class="modal-close" data-close="confirmationModal" type="button">&times;</button>
+    <div id="confirmationPdfContent">
+      <div class="success-mark">&#10003;</div>
+      <p class="eyebrow dark centered"><span></span> Play space locked in <span></span></p>
+      <h2>GAME<em>ON.</em></h2>
+      <p class="confirmation-sub">Your booking is confirmed. Pay when you Play.</p>
+      <div class="ticket">
+        <div class="admin-booking-ticket-top">
+          <div><small>Booking ID</small><strong id="confirmationId">BK-2026-000127</strong></div>
+          <div><small>Unique code</small><strong class="code" id="verificationCode">PDL8X4</strong></div>
+        </div>
+        <div class="modal-summary admin-booking-summary" id="confirmationDetails"></div>
+        <div class="payment-row">
+          <img class="money-icon" src="/assets/money-icon.svg" alt="Money" />
+          <div>
+            <small id="confirmationAmountStatus">Amount due</small><strong id="confirmationAmount">&#8377;2,500</strong>
+            <p>Pay when you Play.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="confirmation-actions">
+      <button class="primary-cta compact" id="whatsappButton" type="button">Share on WhatsApp</button>
+      <button class="outline-button" id="downloadButton" type="button">View Confirmation</button>
+    </div>
+  </section>
+</div>
+
 <div class="modal-backdrop" id="adminBookingModal" hidden>
   <section class="modal admin-booking-modal">
     <button class="modal-close" data-close="adminBookingModal" type="button">&times;</button>
@@ -57,6 +144,27 @@
     <div class="admin-booking-ticket-top" id="adminBookingModalTop"></div>
     <div class="modal-summary admin-booking-summary" id="adminBookingModalSummary"></div>
     <div class="admin-booking-modal-actions" id="adminBookingModalActions"></div>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="staffModal" hidden>
+  <section class="modal">
+    <button class="modal-close" data-close="staffModal" type="button">&times;</button>
+    <p class="eyebrow dark"><span></span> Staff access</p>
+    <h2 id="staffModalTitle">CREATE<br /><em>STAFF.</em></h2>
+    <form id="staffForm" autocomplete="off">
+      <input name="uid" type="hidden" />
+      <label>Name<input required name="name" placeholder="e.g. Rohan Shah" autocomplete="off" /></label>
+      <label>Email address<input required name="email" type="email" placeholder="staff@email.com" autocomplete="off" /></label>
+      <label id="staffPasswordField">Password
+        <span class="password-input-wrap">
+          <input required name="password" type="password" minlength="6" placeholder="Minimum 6 characters" autocomplete="new-password" />
+          <button class="password-toggle" data-password-toggle="staff" type="button" aria-label="Show password"></button>
+        </span>
+      </label>
+      <button class="primary-cta form-submit" id="staffSubmit" type="submit">Save staff <span>&rarr;</span></button>
+      <small class="form-note">Staff can view Overview and Booking only.</small>
+    </form>
   </section>
 </div>
 

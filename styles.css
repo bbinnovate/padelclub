@@ -399,7 +399,7 @@ h2 em {
 }
 
 .booking-section {
-  padding: 110px 4vw 90px;
+  padding: 50px 4vw 90px;
   background: var(--paper);
 }
 .section-intro {
@@ -1218,6 +1218,53 @@ fieldset {
 .form-submit,
 .form-note {
   grid-column: span 2;
+}
+.password-input-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.password-input-wrap input {
+  width: 100%;
+  padding-right: 52px;
+}
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.password-toggle::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  display: block;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.06 12.35a1 1 0 0 1 0-.7A10.75 10.75 0 0 1 12 5a10.75 10.75 0 0 1 9.94 6.65 1 1 0 0 1 0 .7A10.75 10.75 0 0 1 12 19a10.75 10.75 0 0 1-9.94-6.65Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.password-toggle.is-visible::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 2 20 20'/%3E%3Cpath d='M10.58 10.58a2 2 0 0 0 2.83 2.83'/%3E%3Cpath d='M9.88 4.24A10.86 10.86 0 0 1 12 4c5 0 9.27 3.11 11 8a11.6 11.6 0 0 1-3.09 4.58'/%3E%3Cpath d='M6.61 6.61A11.4 11.4 0 0 0 1 12a11.6 11.6 0 0 0 11 8 10.95 10.95 0 0 0 5.39-1.39'/%3E%3C/svg%3E");
+}
+.password-toggle:hover {
+  background: #eef2f7;
+}
+[data-admin-only][hidden] {
+  display: none !important;
+}
+body[data-admin-active="staff"] .admin-topbar {
+  display: none;
+}
+body[data-admin-active="staff"] .admin-content {
+  padding-top: 40px;
 }
 .phone-input {
   height: 47px;
@@ -2640,6 +2687,15 @@ footer > span {
   background: transparent;
   color: var(--white);
   padding: 0;
+}
+.admin-booking-slot.selected {
+  background: var(--blue);
+  color: var(--white);
+  box-shadow: inset 3px 0 0 var(--lime);
+}
+.admin-booking-slot.selected > span {
+  background: transparent;
+  color: var(--white);
 }
 .slot-cell.selected.edge-start {
   border-radius: 5px 5px 0 0;
