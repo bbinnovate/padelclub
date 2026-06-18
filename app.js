@@ -40,15 +40,22 @@ const state = {
   adminBookingRequestId: 0,
   adminBookingTotal: 0,
   adminSearchBackfillDone: false,
+  staffMembers: [],
+  staffLoading: false,
+  editingStaffId: "",
   adminCourtStartDate: "",
   adminCourtEndDate: "",
   adminCourtSelectedDate: 0,
+  adminCourtDateInitialized: false,
+  adminCourtScrolledToToday: false,
+  adminCourtShouldScrollToActive: false,
   customerLookupRequestId: 0,
   customerLookupTimer: null,
   customerLookupLoading: false,
   bookingLimitTimer: null,
   adminUpdateTimer: null,
   appMessageTimer: null,
+  selectedBookingDate: null,
 };
 const ADMIN_BOOKINGS_PAGE_SIZE = 10;
 
@@ -292,7 +299,7 @@ function getSelection() {
     sport,
     facility,
     slots,
-    date: dates[state.selectedDate],
+    date: state.selectedBookingDate || dates[state.selectedDate],
     startTime: startIndex === undefined ? "" : times[startIndex],
     endTime,
     durationMinutes,
@@ -543,10 +550,30 @@ function getFirebaseErrorMessage(error) {
   }
 
   if (code.includes("permission-denied") || code.includes("permission_denied")) {
-    return "Firestore rejected the booking write. Deploy the latest firestore.rules and indexes, then hard refresh the app.";
+    return "Firestore rejected this write. Deploy the latest firestore.rules and indexes, then hard refresh the app.";
   }
 
   return error?.message || "Something went wrong. Please try again.";
+}
+
+function isAdminProfile() {
+  return state.currentProfile?.role === "admin";
+}
+
+function isStaffProfile() {
+  return state.currentProfile?.role === "staff";
+}
+
+function canAccessAdminArea() {
+  return isAdminProfile() || isStaffProfile();
+}
+
+function canManageStaff() {
+  return isAdminProfile();
+}
+
+function canMutateBookings() {
+  return isAdminProfile();
 }
 
 function setButtonLoading(button, loading, label = "Working...") {
@@ -565,6 +592,7 @@ function setButtonLoading(button, loading, label = "Working...") {
 function clearSelection() {
   state.selectedFacilityId = null;
   state.selectedSlots = [];
+  state.selectedBookingDate = null;
   if (elements.bookingBar) elements.bookingBar.hidden = true;
   hideMessage();
 }
@@ -648,9 +676,21 @@ function addDays(date, days) {
   return nextDate;
 }
 
+function getCurrentMonthDateRange() {
+  const today = cloneDateAtNoon(new Date());
+  const startDate = new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0);
+  const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0, 12, 0, 0, 0);
+  return { startDate, endDate, today };
+}
+
 function ensureAdminCourtDateRange() {
-  if (!state.adminCourtStartDate) state.adminCourtStartDate = formatDateInput(dates[0]);
-  if (!state.adminCourtEndDate) state.adminCourtEndDate = formatDateInput(dates[dates.length - 1]);
+  const { startDate, endDate, today } = getCurrentMonthDateRange();
+  if (!state.adminCourtStartDate) state.adminCourtStartDate = formatDateInput(startDate);
+  if (!state.adminCourtEndDate) state.adminCourtEndDate = formatDateInput(endDate);
+  if (!state.adminCourtDateInitialized) {
+    state.adminCourtSelectedDate = today.getDate() - 1;
+    state.adminCourtDateInitialized = true;
+  }
 }
 
 function getAdminCourtDates() {
@@ -664,7 +704,7 @@ function getAdminCourtDates() {
 
   const range = [];
   const cursor = cloneDateAtNoon(startDate);
-  while (cursor <= endDate && range.length < 120) {
+  while (cursor <= endDate && range.length < 370) {
     range.push(cloneDateAtNoon(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -840,9 +880,58 @@ function getAdminBookingById(id) {
   return state.allBookings.find((booking) => getAdminBookingId(booking) === id || booking.bookingId === id);
 }
 
+function selectAdminSlot(facilityId, slotIndex) {
+  if (!canMutateBookings()) {
+    showAlert("Staff can view bookings only.", "error");
+    return;
+  }
+
+  hideBookingLimitModal();
+  const selectedDate = getSelectedAdminCourtDate();
+  state.selectedBookingDate = cloneDateAtNoon(selectedDate);
+
+  if (isUnavailableForDate(state.selectedSport, selectedDate, facilityId, slotIndex)) {
+    showAlert("This time slot cannot be selected.", "error");
+    renderAdminCourtBooking();
+    return;
+  }
+
+  const sport = getSport();
+  const selected = [...state.selectedSlots].sort((a, b) => a - b);
+
+  if (state.selectedFacilityId !== facilityId || selected.length === 0) {
+    state.selectedFacilityId = facilityId;
+    state.selectedSlots = [slotIndex];
+  } else if (selected.includes(slotIndex)) {
+    if (selected.length === 1) {
+      clearSelection();
+    } else if (slotIndex === selected[0] || slotIndex === selected[selected.length - 1]) {
+      state.selectedSlots = selected.filter((value) => value !== slotIndex);
+    } else {
+      state.selectedSlots = [slotIndex];
+    }
+  } else if (slotIndex === selected[0] - 1 || slotIndex === selected[selected.length - 1] + 1) {
+    if (selected.length >= sport.maxSlots) {
+      showAlert(`${sport.name} bookings can be up to ${sport.maxSlots / 2} hours.`, "error");
+    } else {
+      state.selectedSlots = [...selected, slotIndex].sort((a, b) => a - b);
+    }
+  } else {
+    state.selectedSlots = [slotIndex];
+  }
+
+  updateBookingBar();
+  renderAdminCourtBooking();
+}
+
 function renderAdminBookingModalActions(booking) {
   const actionsElement = $("#adminBookingModalActions");
   if (!actionsElement) return;
+
+  if (!canMutateBookings()) {
+    actionsElement.innerHTML = `<p class="empty-state">View only access.</p>`;
+    return;
+  }
 
   const id = getAdminBookingId(booking);
   const actions = [];
@@ -1051,6 +1140,8 @@ function renderAdminCourtFilters() {
       startInput.addEventListener("change", () => {
         state.adminCourtStartDate = startInput.value;
         state.adminCourtSelectedDate = 0;
+        state.adminCourtShouldScrollToActive = true;
+        state.adminCourtScrolledToToday = false;
         renderAdminCourtBooking();
         loadAdminCourtBookingsForRange().then(renderAdminCourtBooking).catch((error) => console.error(error));
       });
@@ -1061,6 +1152,8 @@ function renderAdminCourtFilters() {
       endInput.addEventListener("change", () => {
         state.adminCourtEndDate = endInput.value;
         state.adminCourtSelectedDate = 0;
+        state.adminCourtShouldScrollToActive = true;
+        state.adminCourtScrolledToToday = false;
         renderAdminCourtBooking();
         loadAdminCourtBookingsForRange().then(renderAdminCourtBooking).catch((error) => console.error(error));
       });
@@ -1113,6 +1206,19 @@ function renderAdminCourtFilters() {
         renderAdminCourtBooking();
       });
     });
+
+    if (state.adminCourtShouldScrollToActive || !state.adminCourtScrolledToToday) requestAnimationFrame(() => {
+      const activeDate = dateScroller.querySelector("[data-admin-date].active");
+      if (!activeDate) return;
+      const scrollerRect = dateScroller.getBoundingClientRect();
+      const activeRect = activeDate.getBoundingClientRect();
+      state.adminCourtScrolledToToday = true;
+      state.adminCourtShouldScrollToActive = false;
+      dateScroller.scrollTo({
+        left: Math.max(0, dateScroller.scrollLeft + activeRect.left - scrollerRect.left),
+        behavior: "auto",
+      });
+    });
   }
 }
 
@@ -1155,12 +1261,13 @@ function renderAdminCourtBooking() {
           const booking = getAdminSlotBooking(facility.id, slotIndex);
           const className = getAdminBookingSlotClass(booking);
           const merge = getAdminBookingSlotMerge(booking, slotIndex);
+          const selected = !booking && state.selectedBookingDate?.toDateString() === selectedDate.toDateString() && state.selectedFacilityId === facility.id && state.selectedSlots.includes(slotIndex);
 
           if (merge.isContinuation) {
             return "";
           }
 
-          return `<button class="admin-booking-slot ${booking ? className : "available"} ${merge.isStart ? "merged-start" : ""}" data-admin-booking-id="${booking ? getAdminBookingId(booking) : ""}" style="grid-column: ${facilityIndex + 2}; grid-row: ${slotIndex + 2} / span ${merge.span};" type="button" ${booking ? "" : "disabled"}>
+          return `<button class="admin-booking-slot ${booking ? className : "available"} ${selected ? "selected" : ""} ${merge.isStart ? "merged-start" : ""}" data-admin-booking-id="${booking ? getAdminBookingId(booking) : ""}" ${!booking && canMutateBookings() ? `data-admin-facility="${facility.id}" data-admin-slot="${slotIndex}"` : ""} style="grid-column: ${facilityIndex + 2}; grid-row: ${slotIndex + 2} / span ${merge.span};" type="button" ${!booking && !canMutateBookings() ? "disabled" : ""}>
             ${
               booking
                 ? `<div class="admin-booking-slot-content"><span>${booking.name || "Guest"}</span><span>${booking.phoneNumber || "-"}</span><small>${booking.paymentStatus || "-"}</small></div>`
@@ -1179,6 +1286,9 @@ function renderAdminCourtBooking() {
       const booking = getAdminBookingById(button.dataset.adminBookingId);
       if (booking) openAdminBookingModal(booking);
     });
+  });
+  $$("#adminCourtBookingGrid [data-admin-facility][data-admin-slot]").forEach((button) => {
+    button.addEventListener("click", () => selectAdminSlot(Number(button.dataset.adminFacility), Number(button.dataset.adminSlot)));
   });
 }
 
@@ -1281,7 +1391,7 @@ function showDetailsModal() {
   const selection = getSelection();
   if (state.selectedSlots.length < 2) {
     showMessage("Please select at least two consecutive 30-minute slots to make a 1-hour booking.", "error");
-    $("#book").scrollIntoView({ behavior: "smooth", block: "center" });
+    ($("#book") || $("#adminCourtBookingGrid"))?.scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
 
@@ -1691,6 +1801,11 @@ async function validateBookingTimeLimits(phoneNumber, selection) {
 
 // Booking Creation: bookingToken is the visible code; confirmationToken is the private link token.
 async function confirmBooking(formData, submitButton) {
+  if (isAdminRoute() && !canMutateBookings()) {
+    showAlert("Staff can view bookings only.", "error");
+    return;
+  }
+
   const mobileDigits = getMobileDigits(formData.get("mobile"));
   const name = formData.get("name").trim();
   const email = formData.get("email").trim();
@@ -1764,6 +1879,7 @@ async function confirmBooking(formData, submitButton) {
       durationLabel: selection.durationLabel,
       amount: selection.price,
       players: Number(players),
+      ...(isAdminRoute() ? { bookingByAdmin: true } : {}),
       ...makeBookingSearchFields({ bookingId, bookingToken, name }),
     };
 
@@ -1789,6 +1905,7 @@ async function confirmBooking(formData, submitButton) {
     renderDates();
     renderAdminDashboard();
     renderAvailability();
+    renderAdminCourtBooking();
     // showAlert(
     //   smsResult.ok || whatsappResult.ok
     //     ? "Booking saved and confirmation message queued."
@@ -1811,7 +1928,7 @@ function showConfirmation(booking) {
   $("#whatsappButton").onclick = () => shareConfirmationOnWhatsApp(booking, $("#whatsappButton"));
   elements.detailsModal.hidden = true;
   elements.confirmationModal.hidden = false;
-  elements.bookingBar.hidden = true;
+  if (elements.bookingBar) elements.bookingBar.hidden = true;
   elements.bookingForm.reset();
   clearSelection();
 }
@@ -1821,22 +1938,22 @@ function closeModal(modal) {
   if (modal === elements.bookingLimitModal) clearTimeout(state.bookingLimitTimer);
   if (modal === elements.adminUpdateModal) clearTimeout(state.adminUpdateTimer);
   modal.hidden = true;
-  if ([elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal].every((item) => !item || item.hidden)) {
+  if ([elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal, $("#staffModal")].every((item) => !item || item.hidden)) {
     document.body.style.overflow = "";
   }
 }
 
-// Authentication System: admin login only; customers book without accounts.
+// Authentication System: admin/staff login only; customers book without accounts.
 function prepareAuthForm() {
   if (!elements.authForm) return;
   elements.authForm.dataset.mode = "admin";
-  if ($("#authTitle")) $("#authTitle").innerHTML = "ADMIN<br><em>LOGIN.</em>";
+  if ($("#authTitle")) $("#authTitle").innerHTML = "ADMIN / STAFF<br><em>LOGIN.</em>";
   if ($("#authSubmit")) $("#authSubmit").textContent = "Login";
   if ($("#authNameField")) $("#authNameField").hidden = true;
   if ($("#authPhoneField")) $("#authPhoneField").hidden = true;
   elements.authForm.elements.name.required = false;
   elements.authForm.elements.phoneNumber.required = false;
-  if ($("#authToggleText")) $("#authToggleText").textContent = "Admin access only.";
+  if ($("#authToggleText")) $("#authToggleText").textContent = "Admin and staff access only.";
   if ($("#authToggle")) $("#authToggle").hidden = true;
 }
 
@@ -1863,27 +1980,27 @@ async function handleAuthSubmit(event) {
         password: elements.authForm.elements.password.value,
       });
       state.currentProfile = await loadUserProfile(state.currentUser);
-      if (state.currentProfile?.role !== "admin") throw new Error("Admin access is restricted.");
+      if (!canAccessAdminArea()) throw new Error("Admin or staff access is restricted.");
       updateAuthUI();
       closeModal(elements.authModal);
       navigateToAdmin(true);
-      showAlert("Admin logged in successfully.");
+      showAlert(`${isStaffProfile() ? "Staff" : "Admin"} logged in successfully.`);
       return;
     }
 
     const credential = await auth.signInWithEmailAndPassword(elements.authForm.elements.email.value, elements.authForm.elements.password.value);
     state.currentProfile = await loadUserProfile(credential.user);
-    if (state.currentProfile?.role !== "admin") {
+    if (!canAccessAdminArea()) {
       await auth.signOut();
       state.currentUser = null;
       state.currentProfile = null;
-      throw new Error("Admin access is restricted.");
+      throw new Error("Admin or staff access is restricted.");
     }
     closeModal(elements.authModal);
     navigateToAdmin(true);
-    showAlert("Admin logged in successfully.");
+    showAlert(`${isStaffProfile() ? "Staff" : "Admin"} logged in successfully.`);
   } catch (error) {
-    if (String(error?.message || "").includes("Admin access is restricted")) {
+    if (String(error?.message || "").includes("access is restricted")) {
       state.currentUser = null;
       state.currentProfile = null;
       updateAuthUI();
@@ -1981,11 +2098,11 @@ async function loadUserProfile(user) {
 // Header Role-Based UI: expose admin or user navigation according to Firestore role.
 function updateAuthUI() {
   const loggedIn = Boolean(state.currentUser);
-  const isAdmin = state.currentProfile?.role === "admin";
-  if ($("#loginButton")) $("#loginButton").hidden = isAdmin;
+  const hasPanelAccess = canAccessAdminArea();
+  if ($("#loginButton")) $("#loginButton").hidden = hasPanelAccess;
   if ($("#registerButton")) $("#registerButton").hidden = true;
   if ($("#logoutButton")) $("#logoutButton").hidden = !loggedIn;
-  if ($("#adminPanelButton")) $("#adminPanelButton").hidden = !loggedIn || !isAdmin;
+  if ($("#adminPanelButton")) $("#adminPanelButton").hidden = !loggedIn || !hasPanelAccess;
   if ($("#accountName")) {
     $("#accountName").hidden = !loggedIn;
     $("#accountName").textContent = loggedIn ? state.currentProfile?.name || state.currentUser.email : "";
@@ -1994,7 +2111,12 @@ function updateAuthUI() {
 
 function isAdminRoute() {
   const path = window.location.pathname.replace(/\/$/, "");
-  return document.body.dataset.page === "admin" || path === "/admin" || path === "/admin.html" || path === "/booking";
+  return document.body.dataset.page === "admin" || path === "/admin" || path === "/admin.html" || path === "/booking" || path === "/admin-staff";
+}
+
+function isStaffRoute() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return path === "/admin-staff";
 }
 
 function isLoginRoute() {
@@ -2031,7 +2153,7 @@ function redirectToLogin() {
   window.location.replace("/login");
 }
 
-// Firestore Booking Snapshot: fetch once so admin pages do not poll in the background.
+// Firestore Booking Snapshot: keep availability live across admin and user tabs.
 function subscribeToBookings() {
   if (!firebaseSdkReady) {
     renderAvailability();
@@ -2043,18 +2165,19 @@ function subscribeToBookings() {
     window.unsubscribeAdminBookings = null;
   }
 
-  const startDate = new Date();
+  const subscriptionDates = isAdminRoute() ? getAdminCourtDates() : dates;
+  const startDate = new Date(subscriptionDates[0]);
   startDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(dates[dates.length - 1]);
+  const endDate = new Date(subscriptionDates[subscriptionDates.length - 1]);
   endDate.setHours(23, 59, 59, 999);
 
-  bookingsRef
+  window.unsubscribeAdminBookings = bookingsRef
     .where("bookingDate", ">=", toFirestoreTimestamp(startDate))
     .where("bookingDate", "<=", toFirestoreTimestamp(endDate))
-    .get()
-    .then((snapshot) => {
+    .limit(1000)
+    .onSnapshot((snapshot) => {
       backfillAdminSearchFields(snapshot);
-        state.allBookings = snapshot.docs.map((doc) => ({
+      state.allBookings = snapshot.docs.map((doc) => ({
         docId: doc.id,
         ...doc.data(),
       }));
@@ -2062,8 +2185,7 @@ function subscribeToBookings() {
       renderDates();
       renderAvailability();
       renderAdminCourtBooking();
-    })
-    .catch((error) => {
+    }, (error) => {
       console.error(error);
     });
 }
@@ -2093,19 +2215,27 @@ function renderRoute({ replace = false, showDenied = false } = {}) {
   }
 
   if (isAdminRoute()) {
-    if (state.currentProfile?.role === "admin") {
+    if (isStaffRoute() && !canManageStaff()) {
+      window.location.assign("/booking");
+      if (showDenied) showAlert("Only admins can manage staff.", "error");
+      return;
+    }
+
+    if (canAccessAdminArea()) {
       showView("admin");
       renderAdminDashboard();
+      renderStaffPage();
+      updateStaffPermissionsUI();
       return;
     }
 
     redirectToLogin();
-    if (showDenied) showAlert("Admin login is required to access this page.", "error");
+    if (showDenied) showAlert("Admin or staff login is required to access this page.", "error");
     return;
   }
 
   if (isLoginRoute()) {
-    if (state.currentProfile?.role === "admin") {
+    if (canAccessAdminArea()) {
       navigateToAdmin(true);
       return;
     }
@@ -2142,6 +2272,8 @@ function renderStatusPill(value) {
 }
 
 function renderBookingActions(booking) {
+  if (!canMutateBookings()) return `<span class="empty-actions">View only</span>`;
+
   const id = booking.docId || booking.bookingId;
   const actions = [];
 
@@ -2694,7 +2826,7 @@ async function renderAdminDashboard({ showLoading = false } = {}) {
 }
 
 async function updateBookingFromAdmin(docId, action, button) {
-  if (state.currentProfile?.role !== "admin") {
+  if (!canMutateBookings()) {
     showAlert("Only admins can update bookings.", "error");
     return;
   }
@@ -2727,11 +2859,190 @@ async function updateBookingFromAdmin(docId, action, button) {
   }
 }
 
+function updateStaffPermissionsUI() {
+  const adminOnlyElements = $$("[data-admin-only]");
+  adminOnlyElements.forEach((element) => {
+    element.hidden = !canManageStaff();
+  });
+  if ($("#newBookingButton")) $("#newBookingButton").hidden = !canMutateBookings();
+  if ($("#continueButton")) $("#continueButton").disabled = !canMutateBookings();
+}
+
+async function createStaffAuthUser(email, password) {
+  if (!hasFirebaseConfig) throw new Error("Firebase config is required to create staff.");
+  const signup = await firebaseRestRequest(`${FIREBASE_AUTH_BASE_URL}/accounts:signUp?key=${firebaseConfig.apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+  });
+  return { uid: signup.localId, email: signup.email || email, idToken: signup.idToken };
+}
+
+async function loadStaffMembers() {
+  if (!firebaseSdkReady || !canManageStaff()) return [];
+  state.staffLoading = true;
+  const snapshot = await usersRef.where("role", "==", "staff").get();
+  state.staffMembers = snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }));
+  state.staffLoading = false;
+  return state.staffMembers;
+}
+
+function renderStaffRows() {
+  const table = $("#adminStaffTable");
+  if (!table) return;
+
+  table.innerHTML = state.staffMembers.length
+    ? state.staffMembers
+        .map(
+          (staff) => `
+      <tr>
+        <td>${staff.name || "-"}</td>
+        <td>${staff.email || "-"}</td>
+        <td>${renderStatusPill(staff.role || "staff")}</td>
+        <td>${formatBookingDate(staff.createdAt)}</td>
+        <td>
+          <div class="table-actions">
+            <button data-staff-edit="${staff.uid}" type="button">Edit</button>
+            <button data-staff-delete="${staff.uid}" type="button">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `,
+        )
+        .join("")
+    : `<tr><td colspan="5"><p class="empty-state">No staff created yet.</p></td></tr>`;
+
+  $$("[data-staff-edit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const staff = state.staffMembers.find((item) => item.uid === button.dataset.staffEdit);
+      if (staff) openStaffModal(staff);
+    });
+  });
+  $$("[data-staff-delete]").forEach((button) => {
+    button.addEventListener("click", () => deleteStaffMember(button.dataset.staffDelete, button));
+  });
+}
+
+async function renderStaffPage() {
+  const table = $("#adminStaffTable");
+  if (!table) return;
+  if (!canManageStaff()) {
+    table.innerHTML = `<tr><td colspan="5"><p class="empty-state">Only admins can manage staff.</p></td></tr>`;
+    return;
+  }
+  table.innerHTML = `<tr><td colspan="5"><p class="empty-state">Loading staff...</p></td></tr>`;
+  try {
+    await loadStaffMembers();
+    renderStaffRows();
+  } catch (error) {
+    table.innerHTML = `<tr><td colspan="5"><p class="empty-state">${error.message || "Could not load staff."}</p></td></tr>`;
+  }
+}
+
+function openStaffModal(staff = null) {
+  const modal = $("#staffModal");
+  const form = $("#staffForm");
+  if (!modal || !form || !canManageStaff()) return;
+
+  state.editingStaffId = staff?.uid || "";
+  form.reset();
+  form.elements.uid.value = staff?.uid || "";
+  form.elements.name.value = staff?.name || "";
+  form.elements.email.value = staff?.email || "";
+  form.elements.email.readOnly = Boolean(staff);
+  form.elements.password.required = !staff;
+  $("#staffPasswordField").hidden = Boolean(staff);
+  if ($("#staffModalTitle")) $("#staffModalTitle").innerHTML = staff ? "EDIT<br /><em>STAFF.</em>" : "CREATE<br /><em>STAFF.</em>";
+  if ($("#staffSubmit")) $("#staffSubmit").innerHTML = staff ? "Update staff <span>&rarr;</span>" : "Save staff <span>&rarr;</span>";
+  modal.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+async function saveStaffMember(event) {
+  event.preventDefault();
+  if (!canManageStaff()) {
+    showAlert("Only admins can manage staff.", "error");
+    return;
+  }
+
+  const form = event.currentTarget;
+  const submitButton = $("#staffSubmit");
+  const uid = form.elements.uid.value;
+  const name = form.elements.name.value.trim();
+  const email = form.elements.email.value.trim();
+  const password = form.elements.password.value;
+
+  if (!name || !email || (!uid && password.length < 6)) {
+    showAlert("Please enter valid staff details.", "error");
+    return;
+  }
+
+  setButtonLoading(submitButton, true, uid ? "Updating..." : "Creating...");
+  try {
+    const now = firebase.firestore.FieldValue.serverTimestamp();
+    if (uid) {
+      await usersRef.doc(uid).set({ uid, name, role: "staff", updatedAt: now }, { merge: true });
+      showAlert("Staff updated.");
+    } else {
+      const staffUser = await createStaffAuthUser(email, password);
+      await setFirestoreRestDocument(
+        "Users",
+        staffUser.uid,
+        {
+          uid: staffUser.uid,
+          name,
+          email: staffUser.email,
+          phoneNumber: "",
+          role: "user",
+          createdAt: new Date().toISOString(),
+        },
+        staffUser.idToken,
+      );
+      await usersRef.doc(staffUser.uid).set({
+        uid: staffUser.uid,
+        name,
+        email: staffUser.email,
+        phoneNumber: "",
+        role: "staff",
+        createdAt: now,
+        updatedAt: now,
+      });
+      showAlert("Staff created.");
+    }
+    closeModal($("#staffModal"));
+    await renderStaffPage();
+  } catch (error) {
+    showAlert(getFirebaseErrorMessage(error), "error");
+  } finally {
+    setButtonLoading(submitButton, false);
+  }
+}
+
+async function deleteStaffMember(uid, button) {
+  if (!canManageStaff()) {
+    showAlert("Only admins can manage staff.", "error");
+    return;
+  }
+  if (!window.confirm("Delete this staff account access?")) return;
+
+  setButtonLoading(button, true, "Deleting...");
+  try {
+    await usersRef.doc(uid).delete();
+    state.staffMembers = state.staffMembers.filter((staff) => staff.uid !== uid);
+    renderStaffRows();
+    showAlert("Staff deleted.");
+  } catch (error) {
+    showAlert(error.message || "Could not delete staff.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
 // Admin Route Protection: block non-admins from rendering the admin panel.
 function protectAdminRoute() {
-  if (state.currentProfile?.role !== "admin") {
+  if (!canAccessAdminArea()) {
     navigateToHome(true);
-    showAlert("Admin access is restricted.", "error");
+    showAlert("Admin or staff access is restricted.", "error");
     return false;
   }
   return true;
@@ -2756,13 +3067,31 @@ async function logoutCurrentUser() {
   showAlert("Logged out.");
 }
 
+function togglePasswordInput(button) {
+  const input = button.closest(".password-input-wrap")?.querySelector("input");
+  if (!input) return;
+  const showing = input.type === "text";
+  input.type = showing ? "password" : "text";
+  button.classList.toggle("is-visible", !showing);
+  button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+}
+
 function bindEvents() {
   elements.adminBookingModal = $("#adminBookingModal");
   prepareAuthForm();
   $("#continueButton")?.addEventListener("click", showDetailsModal);
   $("#newBookingButton")?.addEventListener("click", () => {
+    if (!canMutateBookings()) {
+      showAlert("Staff can view bookings only.", "error");
+      return;
+    }
     navigateToHome();
     setTimeout(() => $("#book")?.scrollIntoView({ behavior: "smooth" }), 100);
+  });
+  $("#addStaffButton")?.addEventListener("click", () => openStaffModal());
+  $("#staffForm")?.addEventListener("submit", saveStaffMember);
+  $$("[data-password-toggle]").forEach((button) => {
+    button.addEventListener("click", () => togglePasswordInput(button));
   });
   $("#loginButton")?.addEventListener("click", () => openAuthModal());
   $("#adminPanelButton")?.addEventListener("click", () => {
@@ -2792,7 +3121,7 @@ function bindEvents() {
   $$(".modal-close, [data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal($(`#${button.dataset.close}`)));
   });
-  [elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal, $("#bookingRulesModal")].filter(Boolean).forEach((modal) => {
+  [elements.detailsModal, elements.bookingLimitModal, elements.confirmationModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal, $("#bookingRulesModal"), $("#staffModal")].filter(Boolean).forEach((modal) => {
     modal.addEventListener("click", (event) => {
       if (event.target === modal) closeModal(modal);
     });
@@ -2805,7 +3134,7 @@ function bindEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       hideAppMessageModal();
-      [elements.confirmationModal, elements.bookingLimitModal, elements.detailsModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal, $("#bookingRulesModal")].filter(Boolean).forEach((modal) => {
+      [elements.confirmationModal, elements.bookingLimitModal, elements.detailsModal, elements.adminBookingModal, elements.adminUpdateModal, elements.authModal, $("#bookingRulesModal"), $("#staffModal")].filter(Boolean).forEach((modal) => {
         if (!modal.hidden) closeModal(modal);
       });
     }
@@ -2840,11 +3169,11 @@ async function bootAuth() {
     state.allBookings = [];
     if (user) {
       await loadUserProfile(user);
-      if (state.currentProfile?.role !== "admin") {
+      if (!canAccessAdminArea()) {
         await auth.signOut();
         state.currentUser = null;
         state.currentProfile = null;
-        showAlert("Admin access is restricted.", "error");
+        showAlert("Admin or staff access is restricted.", "error");
         return;
       }
       updateAuthUI();

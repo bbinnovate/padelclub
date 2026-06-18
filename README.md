@@ -1,6 +1,6 @@
-# Padel Club Booking Platform
+# Jain Gymkhana Booking Platform
 
-A mobile-first booking experience and venue operations dashboard for a premium padel club.
+A mobile-first booking experience and venue operations dashboard for Jain Gymkhana.
 
 ## What is implemented
 

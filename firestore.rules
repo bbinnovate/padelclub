@@ -16,18 +16,32 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.role == "admin";
     }
 
+    function isStaff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/Users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.role == "staff";
+    }
+
+    function isPanelUser() {
+      return isAdmin() || isStaff();
+    }
+
     match /Users/{userId} {
       allow create: if isOwner(userId)
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.role == "user"
+        && request.resource.data.role in ["user", "admin"]
         && request.resource.data.keys().hasOnly([
           "uid",
           "name",
           "email",
           "phoneNumber",
           "role",
-          "createdAt"
+          "createdAt",
+          "updatedAt"
         ]);
+      allow create: if isAdmin()
+        && request.resource.data.uid == userId
+        && request.resource.data.role == "staff";
       allow read: if isOwner(userId) || isAdmin();
       allow update: if isOwner(userId)
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -79,8 +93,8 @@ service cloud.firestore {
         && request.resource.data.bookingId == bookingId
         && request.resource.data.status == "Pending"
         && request.resource.data.paymentStatus == "Unpaid";
-      allow get: if isAdmin() || resource.data.status != "Cancelled";
-      allow list: if isAdmin() || request.query.limit <= 1000;
+      allow get: if isPanelUser() || resource.data.status != "Cancelled";
+      allow list: if isPanelUser() || request.query.limit <= 1000;
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(["status", "paymentStatus"]);

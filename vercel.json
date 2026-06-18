@@ -21,6 +21,14 @@
       "destination": "/view/admin.html"
     },
     {
+      "source": "/admin-staff",
+      "destination": "/view/admin-staff.html"
+    },
+    {
+      "source": "/admin-staff/",
+      "destination": "/view/admin-staff.html"
+    },
+    {
       "source": "/booking",
       "destination": "/view/booking.html"
     },
