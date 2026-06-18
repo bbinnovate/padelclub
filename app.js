@@ -460,7 +460,9 @@ async function lookupCustomerFromMobile() {
 
     if (customer) {
       elements.bookingForm.elements.name.value = customer.name || elements.bookingForm.elements.name.value;
-      elements.bookingForm.elements.email.value = customer.email || elements.bookingForm.elements.email.value;
+      if (elements.bookingForm.elements.email) {
+        elements.bookingForm.elements.email.value = customer.email || elements.bookingForm.elements.email.value;
+      }
       setCustomerLookupStatus("Customer found. Details filled.", "success");
     } else {
       setCustomerLookupStatus("");
@@ -1422,7 +1424,7 @@ function showDetailsModal() {
 
   elements.bookingForm.elements.name.value = "";
   elements.bookingForm.elements.mobile.value = "";
-  elements.bookingForm.elements.email.value = "";
+  if (elements.bookingForm.elements.email) elements.bookingForm.elements.email.value = "";
   setCustomerLookupStatus("");
   hideBookingLimitModal();
   setBookingSubmitDisabled(false);
@@ -1808,7 +1810,7 @@ async function confirmBooking(formData, submitButton) {
 
   const mobileDigits = getMobileDigits(formData.get("mobile"));
   const name = formData.get("name").trim();
-  const email = formData.get("email").trim();
+  const email = String(formData.get("email") || "").trim();
 
   if (state.customerLookupLoading) {
     showAlert("Please wait while we check the mobile number.", "info");
@@ -1826,7 +1828,7 @@ async function confirmBooking(formData, submitButton) {
   }
   if (!isValidOptionalEmail(email)) {
     showAlert("Please enter a valid email address or leave it blank.", "error");
-    elements.bookingForm.elements.email.focus();
+    elements.bookingForm.elements.email?.focus();
     return;
   }
 
@@ -3177,10 +3179,12 @@ async function bootAuth() {
         return;
       }
       updateAuthUI();
+      updateStaffPermissionsUI();
       subscribeToBookings();
       renderRoute();
     } else {
       updateAuthUI();
+      updateStaffPermissionsUI();
       if (isAdminRoute()) {
         renderRoute({ showDenied: true });
       } else {
