@@ -52,6 +52,7 @@ const state = {
   customerLookupRequestId: 0,
   customerLookupTimer: null,
   customerLookupLoading: false,
+  bookingMobileDigits: "",
   bookingLimitTimer: null,
   adminUpdateTimer: null,
   appMessageTimer: null,
@@ -437,6 +438,12 @@ function setCustomerLookupStatus(message = "", type = "") {
   indicator.setAttribute("aria-label", type === "loading" ? "Checking customer" : type === "success" ? "Customer found" : "");
 }
 
+function clearBookingCustomerFields() {
+  if (!elements.bookingForm) return;
+  elements.bookingForm.elements.name.value = "";
+  if (elements.bookingForm.elements.email) elements.bookingForm.elements.email.value = "";
+}
+
 async function lookupCustomerFromMobile() {
   if (!elements.bookingForm) return;
   const requestId = ++state.customerLookupRequestId;
@@ -486,6 +493,13 @@ function handleBookingMobileInput(event) {
   input.value = getMobileDigits(input.value);
   clearTimeout(state.customerLookupTimer);
   setCustomerLookupStatus("");
+  if (input.value !== state.bookingMobileDigits) {
+    state.bookingMobileDigits = input.value;
+    state.customerLookupRequestId += 1;
+    state.customerLookupLoading = false;
+    setBookingSubmitDisabled(false);
+    clearBookingCustomerFields();
+  }
   if (input.value.length === 10) {
     state.customerLookupTimer = setTimeout(lookupCustomerFromMobile, 250);
   }
@@ -1422,9 +1436,9 @@ function showDetailsModal() {
     )
     .join("");
 
-  elements.bookingForm.elements.name.value = "";
+  state.bookingMobileDigits = "";
+  clearBookingCustomerFields();
   elements.bookingForm.elements.mobile.value = "";
-  if (elements.bookingForm.elements.email) elements.bookingForm.elements.email.value = "";
   setCustomerLookupStatus("");
   hideBookingLimitModal();
   setBookingSubmitDisabled(false);
