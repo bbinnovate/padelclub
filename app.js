@@ -2872,7 +2872,7 @@ function updateStaffPermissionsUI() {
     element.hidden = !canManageStaff();
   });
   if ($("#newBookingButton")) $("#newBookingButton").hidden = !canMutateBookings();
-  if ($("#continueButton")) $("#continueButton").disabled = !canMutateBookings();
+  if ($("#continueButton")) $("#continueButton").disabled = isAdminRoute() && !canMutateBookings();
 }
 
 async function createStaffAuthUser(email, password) {
