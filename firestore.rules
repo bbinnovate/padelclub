@@ -93,11 +93,19 @@ service cloud.firestore {
         && request.resource.data.bookingId == bookingId
         && request.resource.data.status == "Pending"
         && request.resource.data.paymentStatus == "Unpaid";
-      allow get: if isPanelUser() || resource.data.status != "Cancelled";
+      allow get: if isPanelUser()
+        || !exists(/databases/$(database)/documents/Bookings/$(bookingId))
+        || resource.data.status != "Cancelled";
       allow list: if isPanelUser() || request.query.limit <= 1000;
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(["status", "paymentStatus"]);
+          .hasOnly([
+            "status",
+            "paymentStatus",
+            "bookingIdSearch",
+            "bookingTokenSearch",
+            "nameSearch"
+          ]);
       allow delete: if isAdmin();
     }
   }
