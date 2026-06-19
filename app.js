@@ -84,7 +84,7 @@ const sports = {
   },
   cricket: {
     name: "Turf Cricket",
-    short: "TC",
+    short: "TF",
     bookingCode: "C",
     unit: "Ground",
     count: 3,
