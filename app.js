@@ -2082,18 +2082,22 @@ async function loadUserProfile(user) {
     const doc = await usersRef.doc(user.uid).get();
     if (doc.exists) {
       state.currentProfile = doc.data();
+      updateStaffPermissionsUI();
       return state.currentProfile;
     }
     state.currentProfile = await saveAndVerifyUserProfile(user);
+    updateStaffPermissionsUI();
     return state.currentProfile;
   }
 
   const profile = await getFirestoreRestDocument("Users", user.uid, user.idToken);
   if (profile) {
     state.currentProfile = profile;
+    updateStaffPermissionsUI();
     return state.currentProfile;
   }
   state.currentProfile = await saveAndVerifyUserProfile(user);
+  updateStaffPermissionsUI();
   return state.currentProfile;
 }
 
@@ -2109,6 +2113,7 @@ function updateAuthUI() {
     $("#accountName").hidden = !loggedIn;
     $("#accountName").textContent = loggedIn ? state.currentProfile?.name || state.currentUser.email : "";
   }
+  updateStaffPermissionsUI();
 }
 
 function isAdminRoute() {

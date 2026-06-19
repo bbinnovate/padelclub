@@ -5,7 +5,7 @@
     "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js",
     "/config.js?v=guest-booking-3",
     "/messaging-service.js?v=guest-booking-3",
-    "/app.js?v=guest-booking-18",
+    "/app.js?v=guest-booking-3",
   ];
 
   function loadScript(src) {
