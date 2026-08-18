@@ -104,7 +104,8 @@ service cloud.firestore {
             "paymentStatus",
             "bookingIdSearch",
             "bookingTokenSearch",
-            "nameSearch"
+            "nameSearch",
+            "remarks"
           ]);
       allow delete: if isAdmin();
     }

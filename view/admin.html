@@ -36,6 +36,11 @@
         <div class="panel-heading booking-header-row">
           <h2>All Bookings - Manage Statuses and Payments</h2>
           <div class="booking-search-row">
+            <div class="booking-report-actions">
+              <input id="adminReportDate" class="booking-report-date" type="date" aria-label="Report date" />
+              <button id="downloadDailyReport" class="outline-button compact" type="button">Daily Excel</button>
+              <button id="downloadCancelledReport" class="outline-button compact" type="button">Cancelled Excel</button>
+            </div>
             <input
               id="adminBookingSearch"
               class="booking-search-input"
@@ -54,13 +59,14 @@
                 <th>Facility Details</th>
                 <th>Personal Details</th>
                 <th>Booking Date</th>
+                <th>Remarks</th>
                 <th>Status</th>
                 <th>Payment Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody id="adminBookingTable">
-              <tr><td colspan="8"><p class="empty-state">Loading bookings...</p></td></tr>
+              <tr><td colspan="9"><p class="empty-state">Loading bookings...</p></td></tr>
             </tbody>
           </table>
         </div>

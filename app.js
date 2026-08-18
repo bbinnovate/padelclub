@@ -768,10 +768,9 @@ function isPastSlotFor(dateIndex, slotIndex) {
 
 function isPastSlotForDate(selectedDate, slotIndex) {
   const now = new Date();
-  const slotStart = new Date(selectedDate);
-  slotStart.setHours(6, slotIndex * 30, 0, 0);
-  const latestSelectableStart = new Date(now.getTime() + 10 * 60 * 1000);
-  return selectedDate.toDateString() === now.toDateString() && slotStart <= latestSelectableStart;
+  const slotEnd = new Date(selectedDate);
+  slotEnd.setHours(6, (slotIndex + 1) * 30, 0, 0);
+  return selectedDate.toDateString() === now.toDateString() && slotEnd <= now;
 }
 
 function getMaxConsecutiveAvailableSlotsForDate(sportKey, selectedDate) {
@@ -870,7 +869,7 @@ function renderAvailability() {
 
 function getAdminSlotBooking(facilityId, slotIndex) {
   const selectedDate = getSelectedAdminCourtDate();
-  return state.allBookings.find((booking) => {
+  const matchingBookings = state.allBookings.filter((booking) => {
     const bookingDate = timestampToDate(booking.bookingDate);
     return (
       booking.sportKey === state.selectedSport &&
@@ -879,6 +878,8 @@ function getAdminSlotBooking(facilityId, slotIndex) {
       bookingDate?.toDateString() === selectedDate.toDateString()
     );
   });
+
+  return matchingBookings.find((booking) => booking.status !== "Cancelled");
 }
 
 function getAdminBookingSlotClass(booking) {
@@ -1093,6 +1094,7 @@ function openAdminBookingModal(booking) {
     <div class="admin-booking-court"><small>Sport</small><strong>${getBookingCourtBadge(booking)}</strong></div>
     <div><small>Date</small><strong>${booking.bookingDateLabel || formatBookingDateOnly(booking.bookingDate)}</strong></div>
     <div><small>Time</small><strong>${booking.timeSlot || `${booking.startTime || "-"} - ${booking.endTime || "-"}`}</strong></div>
+    <div class="admin-booking-remarks"><small>Remarks</small><strong>${booking.remarks || "-"}</strong></div>
     <div class="admin-booking-amount"><small>Amount ${getBookingAmountStatusLabel(booking)}</small><strong>${formatCurrency(booking.amount || 0)}</strong></div>
   `;
   renderAdminBookingModalActions(booking);
@@ -1793,10 +1795,10 @@ function validateDailyBookingLimit(bookings, selection) {
   );
 }
 
-async function validateBookingTimeLimits(phoneNumber, selection) {
+async function validateBookingTimeLimits(phoneNumber, selection, { skipDailyLimit = false } = {}) {
   const bookings = await fetchBookingsByPhone(phoneNumber);
 
-  validateDailyBookingLimit(bookings, selection);
+  if (!skipDailyLimit) validateDailyBookingLimit(bookings, selection);
 
   const { start, end } = getWeekRange(selection.date);
   const bookedMinutes = getBookedMinutesInRange(bookings, start, end);
@@ -1825,6 +1827,7 @@ async function confirmBooking(formData, submitButton) {
   const mobileDigits = getMobileDigits(formData.get("mobile"));
   const name = formData.get("name").trim();
   const email = String(formData.get("email") || "").trim();
+  const remarks = String(formData.get("remarks") || "").trim();
 
   if (state.customerLookupLoading) {
     showAlert("Please wait while we check the mobile number.", "info");
@@ -1852,7 +1855,7 @@ async function confirmBooking(formData, submitButton) {
   try {
     const selection = getSelection();
     const phoneNumber = `+91${mobileDigits}`;
-    await validateBookingTimeLimits(phoneNumber, selection);
+    await validateBookingTimeLimits(phoneNumber, selection, { skipDailyLimit: isAdminRoute() });
     setButtonLoading(submitButton, true, "Saving...");
     const bookingDate = toBookingDate(selection);
     const bookingId = await makeBookingReference(state.selectedSport, bookingDate);
@@ -1878,6 +1881,7 @@ async function confirmBooking(formData, submitButton) {
       name,
       email,
       phoneNumber,
+      remarks,
       bookingDate: firebaseSdkReady ? firebase.firestore.Timestamp.fromDate(bookingDate) : bookingDate.toISOString(),
       status: "Pending",
       paymentStatus: "Unpaid",
@@ -2388,7 +2392,7 @@ function matchesAdminBookingSearch(booking, searchTerm) {
 function showAdminTableLoading() {
   const table = $("#adminBookingTable");
   if (!table) return;
-  table.innerHTML = `<tr><td colspan="8"><p class="empty-state">Loading bookings...</p></td></tr>`;
+  table.innerHTML = `<tr><td colspan="9"><p class="empty-state">Loading bookings...</p></td></tr>`;
 }
 
 async function getFirestoreQueryCount(query) {
@@ -2688,6 +2692,69 @@ function renderAdminPagination(totalItems) {
   });
 }
 
+function escapeCsvCell(value) {
+  const text = String(value ?? "");
+  const safeText = /^[=+\-@]/.test(text) ? "'" + text : text;
+  return '"' + safeText.replace(/"/g, '""') + '"';
+}
+
+async function fetchBookingsForReport(reportDate) {
+  const { start, end } = getDayRange(reportDate);
+  if (firebaseSdkReady) {
+    const snapshot = await bookingsRef
+      .where("bookingDate", ">=", toFirestoreTimestamp(start))
+      .where("bookingDate", "<", toFirestoreTimestamp(end))
+      .get();
+    return snapshot.docs.map(serializeAdminBooking);
+  }
+  return state.allBookings.filter((booking) => {
+    const bookingDate = timestampToDate(booking.bookingDate);
+    return bookingDate && bookingDate >= start && bookingDate < end;
+  });
+}
+
+async function downloadAdminBookingReport({ cancelledOnly = false, selectedDate = null, sportKey = null, triggerButton = null } = {}) {
+  if (!canAccessAdminArea()) return;
+  const dateInput = $("#adminReportDate");
+  const reportDate = selectedDate || parseDateInput(dateInput?.value) || new Date();
+  const button = triggerButton || (cancelledOnly ? $("#downloadCancelledReport") : $("#downloadDailyReport"));
+  setButtonLoading(button, true, "Preparing...");
+  try {
+    const bookings = sortAdminBookings(await fetchBookingsForReport(reportDate))
+      .filter((booking) => !sportKey || booking.sportKey === sportKey)
+      .filter((booking) => !cancelledOnly || booking.status === "Cancelled");
+    if (!bookings.length) {
+      const sportName = sportKey ? sports[sportKey]?.name + " " : "";
+      showAlert("No " + sportName + (cancelledOnly ? "cancelled bookings" : "bookings") + " found for " + formatDateInput(reportDate) + ".", "info");
+      return;
+    }
+    const columns = [
+      ["Booking ID", "bookingId"], ["Unique Code", "bookingToken"], ["Customer", "name"],
+      ["Mobile", "phoneNumber"], ["Email", "email"], ["Sport", "sportName"],
+      ["Court", "courtName"], ["Booking Date", (booking) => formatBookingDate(booking.bookingDate)],
+      ["Time", "timeSlot"], ["Duration", "durationLabel"], ["Amount", "amount"],
+      ["Status", "status"], ["Payment Status", "paymentStatus"], ["Remarks", "remarks"],
+    ];
+    const csvRows = [columns.map(([label]) => escapeCsvCell(label)).join(",")];
+    bookings.forEach((booking) => csvRows.push(columns.map(([, field]) =>
+      escapeCsvCell(typeof field === "function" ? field(booking) : booking[field]),
+    ).join(",")));
+    const blob = new Blob(["\ufeff" + csvRows.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const sportFileName = sportKey ? sportKey.replace(/[^a-z0-9-]/gi, "-").toLowerCase() + "-" : "";
+    link.download = (cancelledOnly ? "cancelled-bookings-" : "booking-report-") + sportFileName + formatDateInput(reportDate) + ".csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    showAlert(error.message || "Could not create the Excel report.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
 function renderAdminGreeting() {
   const dateElement = $("#adminCurrentDate");
   const greetingElement = $("#adminGreeting");
@@ -2789,7 +2856,7 @@ async function renderAdminDashboard({ showLoading = false } = {}) {
       visibleBookings = visibleBookings.slice(0, expectedRowsOnPage);
     } catch (error) {
       if (requestId !== state.adminBookingRequestId) return;
-      bookingTable.innerHTML = `<tr><td colspan="8"><p class="empty-state">${error.message || "Could not load bookings."}</p></td></tr>`;
+      bookingTable.innerHTML = `<tr><td colspan="9"><p class="empty-state">${error.message || "Could not load bookings."}</p></td></tr>`;
       renderAdminPaginationControls(0);
       return;
     } finally {
@@ -2825,6 +2892,7 @@ async function renderAdminDashboard({ showLoading = false } = {}) {
           </div>
         </td>
         <td>${formatBookingDate(booking.bookingDate)}</td>
+        <td>${booking.remarks || "-"}</td>
         <td>${renderStatusPill(booking.status)}</td>
         <td>${renderStatusPill(booking.paymentStatus)}</td>
         <td>
@@ -2836,7 +2904,7 @@ async function renderAdminDashboard({ showLoading = false } = {}) {
     `,
         )
         .join("")
-    : `<tr><td colspan="8"><p class="empty-state">No bookings found.</p></td></tr>`;
+    : `<tr><td colspan="9"><p class="empty-state">No bookings found.</p></td></tr>`;
 
   if (firebaseSdkReady) renderAdminPaginationControls(totalItems);
   else renderAdminPagination(totalItems);
@@ -3122,6 +3190,21 @@ function bindEvents() {
     const modal = $("#bookingRulesModal");
     if (modal) modal.hidden = false;
   });
+  const adminReportDate = $("#adminReportDate");
+  if (adminReportDate && !adminReportDate.value) adminReportDate.value = formatDateInput(new Date());
+  $("#downloadDailyReport")?.addEventListener("click", () => downloadAdminBookingReport());
+  $("#downloadCancelledReport")?.addEventListener("click", () => downloadAdminBookingReport({ cancelledOnly: true }));
+  $("#downloadSelectedReport")?.addEventListener("click", (event) => downloadAdminBookingReport({
+    selectedDate: getSelectedAdminCourtDate(),
+    sportKey: state.selectedSport,
+    triggerButton: event.currentTarget,
+  }));
+  $("#downloadSelectedCancelledReport")?.addEventListener("click", (event) => downloadAdminBookingReport({
+    cancelledOnly: true,
+    selectedDate: getSelectedAdminCourtDate(),
+    sportKey: state.selectedSport,
+    triggerButton: event.currentTarget,
+  }));
   $("#adminBookingSearch")?.addEventListener("input", (event) => {
     state.adminBookingSearch = event.target.value;
     resetAdminBookingPager();

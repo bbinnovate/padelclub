@@ -1368,6 +1368,35 @@ body[data-admin-active="staff"] .admin-content {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(49, 87, 255, 0.1);
 }
+.modal form .booking-form-full {
+  grid-column: 1 / -1;
+}
+.modal textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 92px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--white);
+  padding: 12px 13px;
+  outline: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-transform: none;
+  letter-spacing: 0;
+  resize: vertical;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.modal textarea::placeholder {
+  color: #8a909c;
+}
+.modal textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(49, 87, 255, 0.1);
+}
 .modal .phone-input input {
   height: 100%;
   border: 0;
@@ -3056,6 +3085,50 @@ footer > span {
   justify-content: space-between;
   gap: 16px;
 }
+.booking-view-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.panel-heading .booking-report-button {
+  min-height: 42px;
+  border: 1px solid #8bd800;
+  border-radius: 6px;
+  background: #a8ff00;
+  padding: 0 18px;
+  color: #0b0f18;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+  box-shadow: 0 5px 14px rgba(103, 170, 0, 0.18);
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.panel-heading .booking-report-button.cancelled {
+  border-color: #d8a2a2;
+  background: #fff6f6;
+  color: #a32626;
+  box-shadow: none;
+}
+.panel-heading .booking-report-button:hover {
+  border-color: #78bd00;
+  background: #97e800;
+  transform: translateY(-1px);
+  box-shadow: 0 7px 16px rgba(103, 170, 0, 0.24);
+}
+.panel-heading .booking-report-button.cancelled:hover {
+  border-color: #c85c5c;
+  background: #ffe7e7;
+  box-shadow: 0 5px 12px rgba(163, 38, 38, 0.12);
+}
+.panel-heading .booking-report-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
+}
 .admin-date-range-filter {
   display: flex;
   align-items: flex-end;
@@ -3412,11 +3485,16 @@ button.admin-booking-slot:not(:disabled):hover {
   font-family: var(--display);
   font-size: 15px;
 }
+.admin-booking-summary .admin-booking-remarks,
 .admin-booking-summary .admin-booking-amount {
+  width: 100%;
   grid-column: 1 / -1;
   border-left: 0;
   border-bottom: 0;
   text-align: left;
+}
+.admin-booking-summary .admin-booking-remarks {
+  border-bottom: 1px solid var(--line);
 }
 .admin-booking-summary .admin-booking-amount strong {
   color: var(--blue);
@@ -4279,6 +4357,23 @@ button.admin-booking-slot:not(:disabled):hover {
   max-width: 100%;
 }
 
+.booking-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.booking-report-date {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--white);
+  padding: 0 10px;
+  color: var(--ink);
+  font: inherit;
+}
+
 @media (max-width: 768px) {
   .booking-header-row {
     flex-direction: column;
@@ -4299,6 +4394,14 @@ button.admin-booking-slot:not(:disabled):hover {
 
   .booking-search-input {
     width: 100%;
+  }
+
+  .booking-report-actions {
+    width: 100%;
+  }
+
+  .booking-report-actions > * {
+    flex: 1 1 140px;
   }
 
   .table-pagination {
