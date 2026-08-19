@@ -74,4 +74,4 @@ Configuration:
 - `FRONTEND_ACCESS_SECRET` should be a separate long random value in local and Vercel environments.
 - `FRONTEND_ACCESS_TTL_SECONDS=86400` controls access duration (one day by default).
 
-To remove the temporary restriction later, set `FRONTEND_GATE_ENABLED=false` in the local/Vercel environment and redeploy. No frontend code needs to be changed. For permanent code removal, delete `middleware.mjs`, `api/access-login.js`, `lib/access-gate.js`, and `view/access.html`, remove the access route from `vercel.json`, and remove the access-gate block/imports from `server.js`.
+To remove the temporary restriction later, set `FRONTEND_GATE_ENABLED=false` in the local/Vercel environment and redeploy. No frontend code needs to be changed. For permanent code removal, delete `middleware.ts`, `api/access-login.js`, `lib/access-gate.js`, and `view/access.html`, remove the access route from `vercel.json`, and remove the access-gate block/imports from `server.js`.
