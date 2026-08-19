@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/access",
+      "destination": "/view/access.html"
+    },
+    {
+      "source": "/access/",
+      "destination": "/view/access.html"
+    },
+    {
       "source": "/config.js",
       "destination": "/api/config.js"
     },

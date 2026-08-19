@@ -1,6 +1,9 @@
 {
   "scripts": {
     "start": "node server.js"
+  },
+  "dependencies": {
+    "@vercel/functions": "3.8.0"
   }
 }
 

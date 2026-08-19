@@ -62,3 +62,16 @@ Money is stored as integer minor units. Authentication should use Supabase mobil
 5. Deploy the web client behind HTTPS and configure the PWA icons.
 
 The API and schema intentionally avoid frontend-specific logic, so a Flutter client can consume the same contract without redesigning the backend.
+
+## Temporary frontend password gate
+
+The entire site is protected before HTML, JavaScript, CSS, config, or API routes are served. Open `/access` and enter the configured password. Successful access creates a signed, expiring, `HttpOnly` cookie.
+
+Configuration:
+
+- `FRONTEND_GATE_ENABLED=true` enables protection (enabled by default).
+- `FRONTEND_ACCESS_PASSWORD=cswp8` sets the temporary password.
+- `FRONTEND_ACCESS_SECRET` should be a separate long random value in local and Vercel environments.
+- `FRONTEND_ACCESS_TTL_SECONDS=86400` controls access duration (one day by default).
+
+To remove the temporary restriction later, set `FRONTEND_GATE_ENABLED=false` in the local/Vercel environment and redeploy. No frontend code needs to be changed. For permanent code removal, delete `middleware.mjs`, `api/access-login.js`, `lib/access-gate.js`, and `view/access.html`, remove the access route from `vercel.json`, and remove the access-gate block/imports from `server.js`.

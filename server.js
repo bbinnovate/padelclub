@@ -1,6 +1,8 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const accessLogin = require("./api/access-login");
+const { hasValidAccessCookie, isAccessGateEnabled } = require("./lib/access-gate");
 
 const ROOT = __dirname;
 const VIEW_ROOT = path.join(ROOT, "view");
@@ -195,6 +197,41 @@ function serveStatic(request, response) {
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
   const requestPath = decodeURIComponent(url.pathname);
   const routePath = requestPath.replace(/\/$/, "") || "/";
+
+  if (routePath === "/access" || routePath === "/access.html") {
+    if (request.method !== "GET") {
+      send(response, 405, "Method not allowed", "text/plain; charset=utf-8", { Allow: "GET" });
+      return;
+    }
+    fs.readFile(path.join(VIEW_ROOT, "access.html"), (error, content) => {
+      if (error) {
+        send(response, 500, "Access page unavailable.");
+        return;
+      }
+      send(response, 200, content, MIME_TYPES[".html"], {
+        "Cache-Control": "no-store",
+        "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+      });
+    });
+    return;
+  }
+
+  if (routePath === "/api/access-login") {
+    accessLogin(request, response, getEnv());
+    return;
+  }
+
+  const env = getEnv();
+  if (isAccessGateEnabled(env) && !hasValidAccessCookie(request, env)) {
+    const returnTo = `${url.pathname}${url.search}`;
+    send(response, 307, "", "text/plain; charset=utf-8", {
+      "Cache-Control": "no-store",
+      Location: `/access?returnTo=${encodeURIComponent(returnTo)}`,
+    });
+    return;
+  }
 
   if (routePath === "/config.js" || routePath === "/api/config.js") {
     sendRuntimeConfig(response);

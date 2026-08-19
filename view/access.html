@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0b0f18" />
+    <title>Private Access | Jain Gymkhana</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, Arial, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 80% 15%, #244307 0, transparent 28%), linear-gradient(145deg, #080c13, #111827); color: #fff; }
+      .gate { width: min(430px, 100%); padding: 34px; border: 1px solid #303846; border-radius: 18px; background: rgba(13, 19, 29, .96); box-shadow: 0 28px 70px rgba(0,0,0,.45); }
+      .brand { margin: 0 0 30px; color: #b0ff22; font-size: 20px; font-weight: 900; letter-spacing: -.4px; }
+      .eyebrow { margin: 0 0 8px; color: #9aa4b4; font-size: 11px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(34px, 8vw, 48px); line-height: .98; letter-spacing: -2px; }
+      .intro { margin: 16px 0 26px; color: #aeb7c5; font-size: 14px; line-height: 1.55; }
+      label { display: grid; gap: 8px; color: #cbd2dc; font-size: 11px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; }
+      input { width: 100%; height: 50px; border: 1px solid #394352; border-radius: 8px; background: #0a0f17; padding: 0 14px; outline: none; color: #fff; font-size: 16px; }
+      input:focus { border-color: #a8ff00; box-shadow: 0 0 0 3px rgba(168,255,0,.12); }
+      button { width: 100%; min-height: 50px; margin-top: 16px; border: 0; border-radius: 8px; background: #a8ff00; color: #0b0f18; font-size: 13px; font-weight: 900; cursor: pointer; }
+      button:disabled { opacity: .65; cursor: wait; }
+      .message { min-height: 20px; margin: 12px 0 0; color: #ff8f98; font-size: 13px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <main class="gate">
+      <p class="brand">JAIN GYMKHANA</p>
+      <p class="eyebrow">Restricted preview</p>
+      <h1>Password required.</h1>
+      <p class="intro">Enter the access password to open this website.</p>
+      <form id="accessForm">
+        <label>Access password<input id="accessPassword" type="password" required autocomplete="current-password" autofocus /></label>
+        <button id="accessButton" type="submit">Open website</button>
+        <p class="message" id="accessMessage" role="alert" aria-live="polite"></p>
+      </form>
+    </main>
+    <script>
+      const form = document.getElementById("accessForm");
+      const input = document.getElementById("accessPassword");
+      const button = document.getElementById("accessButton");
+      const message = document.getElementById("accessMessage");
+      const requestedPath = new URLSearchParams(location.search).get("returnTo");
+      const returnTo = requestedPath && requestedPath.startsWith("/") && !requestedPath.startsWith("//") ? requestedPath : "/";
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        button.textContent = "Checking...";
+        message.textContent = "";
+        try {
+          const response = await fetch("/api/access-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ password: input.value }),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "Access denied.");
+          location.replace(returnTo);
+        } catch (error) {
+          message.textContent = error.message || "Access denied.";
+          input.select();
+        } finally {
+          button.disabled = false;
+          button.textContent = "Open website";
+        }
+      });
+    </script>
+  </body>
+</html>
